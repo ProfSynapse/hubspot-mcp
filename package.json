@@ -1,0 +1,46 @@
+{
+    "name": "hubspot-mcp-server",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Hubspot MCP Server - A Model Context Protocol server for Hubspot CRM integration",
+    "type": "module",
+    "main": "build/index.js",
+    "bin": {
+        "hubspot-mcp-server": "build/index.js"
+    },
+    "files": [
+        "build",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "build": "tsc",
+        "start": "node build/index.js",
+        "dev": "tsc -w",
+        "prepare": "echo \"Skipping prepare script\"",
+        "test": "echo \"No tests specified\" && exit 0"
+    },
+    "keywords": [
+        "mcp",
+        "ai",
+        "model-context-protocol",
+        "hubspot",
+        "crm",
+        "server"
+    ],
+    "author": "",
+    "license": "MIT",
+    "dependencies": {
+        "@hubspot/api-client": "^10.1.0",
+        "@modelcontextprotocol/sdk": "0.6.0",
+        "axios": "^1.6.7",
+        "dotenv": "^16.4.1"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.16",
+        "typescript": "^5.3.3"
+    },
+    "engines": {
+        "node": ">=18.0.0"
+    }
+}
