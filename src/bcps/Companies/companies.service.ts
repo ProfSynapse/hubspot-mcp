@@ -7,7 +7,6 @@
 
 import { SimplePublicObjectInputForCreate, PublicObjectSearchRequest } from '@hubspot/api-client/lib/codegen/crm/companies/index.js';
 import { HubspotBaseService } from '../../core/base-service.js';
-import { BcpError } from '../../core/types.js';
 
 // Basic company properties that can be undefined
 export interface CompanyPropertiesInput {
