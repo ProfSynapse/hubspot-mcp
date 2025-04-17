@@ -26,49 +26,15 @@ const inputSchema: InputSchema = {
     },
     contentGroupId: {
       type: 'string',
-      description: 'ID of the parent blog to publish the post to (required)'
+      description: 'ID of the parent blog to publish the post to (required - use list tool to find valid IDs)'
     },
     slug: {
       type: 'string',
       description: 'URL slug for the blog post'
     },
-    blogAuthorId: {
-      type: 'string',
-      description: 'ID of the blog author'
-    },
-    metaDescription: {
-      type: 'string',
-      description: 'Meta description for the blog post'
-    },
     postBody: {
       type: 'string',
       description: 'HTML content of the blog post'
-    },
-    featuredImage: {
-      type: 'string',
-      description: 'URL of the featured image'
-    },
-    useFeaturedImage: {
-      type: 'boolean',
-      description: 'Whether to include a featured image',
-      default: true
-    },
-    state: {
-      type: 'string',
-      description: 'Publish state of the post (DRAFT, PUBLISHED, SCHEDULED)',
-      enum: ['DRAFT', 'PUBLISHED', 'SCHEDULED'],
-      default: 'DRAFT'
-    },
-    publishDate: {
-      type: 'string',
-      description: 'Date to publish the post (ISO8601 format, required for SCHEDULED state)'
-    },
-    tagIds: {
-      type: 'array',
-      description: 'IDs of tags to associate with the post',
-      items: {
-        type: 'string'
-      }
     }
   },
   required: ['name', 'contentGroupId']
@@ -93,15 +59,9 @@ export const tool: ToolDefinition = {
       const properties: Record<string, any> = {
         name: params.name,
         contentGroupId: params.contentGroupId,
+        state: 'DRAFT', // Always set to DRAFT
         ...(params.slug && { slug: params.slug }),
-        ...(params.blogAuthorId && { blogAuthorId: params.blogAuthorId }),
-        ...(params.metaDescription && { metaDescription: params.metaDescription }),
-        ...(params.postBody && { postBody: params.postBody }),
-        ...(params.featuredImage && { featuredImage: params.featuredImage }),
-        ...(params.useFeaturedImage !== undefined && { useFeaturedImage: params.useFeaturedImage }),
-        ...(params.state && { state: params.state }),
-        ...(params.publishDate && { publishDate: params.publishDate }),
-        ...(params.tagIds && { tagIds: params.tagIds })
+        ...(params.postBody && { postBody: params.postBody })
       };
       
       // Create blog post

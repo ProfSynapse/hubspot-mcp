@@ -26,32 +26,9 @@ const inputSchema: InputSchema = {
       type: 'string',
       description: 'URL slug for the blog post'
     },
-    blogAuthorId: {
-      type: 'string',
-      description: 'ID of the blog author'
-    },
-    metaDescription: {
-      type: 'string',
-      description: 'Meta description for the blog post'
-    },
     postBody: {
       type: 'string',
       description: 'HTML content of the blog post'
-    },
-    featuredImage: {
-      type: 'string',
-      description: 'URL of the featured image'
-    },
-    useFeaturedImage: {
-      type: 'boolean',
-      description: 'Whether to include a featured image'
-    },
-    tagIds: {
-      type: 'array',
-      description: 'IDs of tags to associate with the post',
-      items: {
-        type: 'string'
-      }
     },
     updateDraftOnly: {
       type: 'boolean',
@@ -81,12 +58,7 @@ export const tool: ToolDefinition = {
       const properties: Record<string, any> = {
         ...(params.name && { name: params.name }),
         ...(params.slug && { slug: params.slug }),
-        ...(params.blogAuthorId && { blogAuthorId: params.blogAuthorId }),
-        ...(params.metaDescription && { metaDescription: params.metaDescription }),
-        ...(params.postBody && { postBody: params.postBody }),
-        ...(params.featuredImage && { featuredImage: params.featuredImage }),
-        ...(params.useFeaturedImage !== undefined && { useFeaturedImage: params.useFeaturedImage }),
-        ...(params.tagIds && { tagIds: params.tagIds })
+        ...(params.postBody && { postBody: params.postBody })
       };
       
       // Update blog post
