@@ -14,6 +14,12 @@ import { createHubspotApiClient } from '../../core/hubspot-client.js';
 const inputSchema: InputSchema = {
   type: 'object',
   properties: {
+    operation: {
+      type: 'string',
+      description: 'Operation type (always "create" for this tool)',
+      enum: ['create'],
+      default: 'create'
+    },
     name: {
       type: 'string',
       description: 'Blog post title (required)'

@@ -20,6 +20,12 @@ const inputSchema: InputSchema = {
       minimum: 1,
       maximum: 100,
       default: 10
+    },
+    operation: {
+      type: 'string',
+      description: 'Operation type (always "recent" for this tool)',
+      enum: ['recent'],
+      default: 'recent'
     }
   },
   required: []
@@ -41,7 +47,8 @@ export const tool: ToolDefinition = {
       const apiClient = createHubspotApiClient(apiKey);
       
       // Get recent companies
-      const companies = await apiClient.getRecentCompanies(params.limit || 10);
+      const limit = params.limit || 10;
+      const companies = await apiClient.getRecentCompanies(limit);
       
       // Transform results
       const results = companies.map(company => ({

@@ -9,6 +9,60 @@ import { ToolDefinition, InputSchema } from '../../core/types.js';
 import { createHubspotApiClient } from '../../core/hubspot-client.js';
 
 /**
+ * Valid HubSpot industry values
+ * These are the allowed values for the industry property in HubSpot
+ */
+const VALID_INDUSTRIES = [
+  'ACCOUNTING',
+  'ADVERTISING',
+  'AEROSPACE',
+  'AGRICULTURE',
+  'APPAREL',
+  'BANKING',
+  'BIOTECHNOLOGY',
+  'CHEMICALS',
+  'COMMUNICATIONS',
+  'CONSTRUCTION',
+  'CONSULTING',
+  'CONSUMER_GOODS',
+  'CONSUMER_SERVICES',
+  'EDUCATION',
+  'ELECTRONICS',
+  'ENERGY',
+  'ENGINEERING',
+  'ENTERTAINMENT',
+  'ENVIRONMENTAL',
+  'FINANCE',
+  'FOOD_BEVERAGE',
+  'GOVERNMENT',
+  'HEALTHCARE',
+  'HOSPITALITY',
+  'INSURANCE',
+  'LEGAL',
+  'MANUFACTURING',
+  'MEDIA',
+  'MINING',
+  'NON_PROFIT',
+  'PHARMACEUTICALS',
+  'REAL_ESTATE',
+  'RECREATION',
+  'RETAIL',
+  'SHIPPING',
+  'TECHNOLOGY',
+  'TELECOMMUNICATIONS',
+  'TRANSPORTATION',
+  'UTILITIES',
+  'COMPUTER_SOFTWARE',
+  'COMPUTER_HARDWARE',
+  'IT_SERVICES',
+  'MILITARY',
+  'RELIGIOUS',
+  'RESEARCH',
+  'SPORTS',
+  'OTHER'
+];
+
+/**
  * Input schema for create company tool
  */
 const inputSchema: InputSchema = {
@@ -24,7 +78,8 @@ const inputSchema: InputSchema = {
     },
     industry: {
       type: 'string',
-      description: 'Company industry'
+      description: 'Company industry (must be a valid HubSpot industry value)',
+      enum: VALID_INDUSTRIES
     },
     description: {
       type: 'string',

@@ -37,6 +37,19 @@ export class HubspotApiClient {
   }
 
   /**
+   * Get the access token from environment variables
+   * 
+   * @returns Access token
+   */
+  private getAccessToken(): string {
+    const token = process.env.HUBSPOT_ACCESS_TOKEN;
+    if (!token) {
+      throw new Error('Access token not available');
+    }
+    return token;
+  }
+
+  /**
    * Handle API errors consistently
    */
   private handleApiError(error: unknown, operation: string): never {
@@ -488,10 +501,36 @@ export class HubspotApiClient {
    */
   async createBlogPost(properties: Record<string, any>): Promise<any> {
     try {
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.create(properties as any);
+      // Validate required properties
+      if (!properties.contentGroupId) {
+        throw new Error('Content group ID is required for create operation');
+      }
+      
+      // Use fetch directly to create a blog post
+      const accessToken = this.getAccessToken();
+      
+      const url = 'https://api.hubapi.com/cms/v3/blogs/posts';
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(properties)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to create blog post: ${errorData.message || response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       // Return the response directly to avoid type issues
-      return this.formatResponse(response);
+      return this.formatResponse(data);
     } catch (error) {
       return this.handleApiError(error, 'createBlogPost');
     }
@@ -505,10 +544,26 @@ export class HubspotApiClient {
    */
   async getBlogPost(id: string): Promise<any> {
     try {
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.getById(id);
+      // Use fetch directly to get a blog post
+      const accessToken = this.getAccessToken();
+      
+      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get blog post: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       // Return the response directly to avoid type issues
-      return this.formatResponse(response);
+      return this.formatResponse(data);
     } catch (error) {
       return this.handleApiError(error, 'getBlogPost');
     }
@@ -523,10 +578,30 @@ export class HubspotApiClient {
    */
   async updateBlogPost(id: string, properties: Record<string, any>): Promise<any> {
     try {
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.update(id, properties as any);
+      // Use fetch directly to update a blog post
+      const accessToken = this.getAccessToken();
+      
+      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(properties)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update blog post: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       // Return the response directly to avoid type issues
-      return this.formatResponse(response);
+      return this.formatResponse(data);
     } catch (error) {
       return this.handleApiError(error, 'updateBlogPost');
     }
@@ -541,10 +616,30 @@ export class HubspotApiClient {
    */
   async updateBlogPostDraft(id: string, properties: Record<string, any>): Promise<any> {
     try {
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.updateDraft(id, properties as any);
+      // Use fetch directly to update a blog post draft
+      const accessToken = this.getAccessToken();
+      
+      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}/draft`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(properties)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update blog post draft: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       // Return the response directly to avoid type issues
-      return this.formatResponse(response);
+      return this.formatResponse(data);
     } catch (error) {
       return this.handleApiError(error, 'updateBlogPostDraft');
     }
@@ -557,87 +652,29 @@ export class HubspotApiClient {
    */
   async deleteBlogPost(id: string): Promise<void> {
     try {
-      await this.client.cms.blogs.blogPosts.blogPostsApi.archive(id);
+      // Use fetch directly to delete a blog post
+      const accessToken = this.getAccessToken();
+      
+      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete blog post: ${response.statusText}`);
+      }
     } catch (error) {
       this.handleApiError(error, 'deleteBlogPost');
     }
   }
 
-  /**
-   * Publish a blog post draft
-   * 
-   * @param id - Blog post ID
-   * @returns Published blog post data
-   */
-  async publishBlogPost(id: string): Promise<any> {
-    try {
-      // First get the blog post
-      const blogPost = await this.client.cms.blogs.blogPosts.blogPostsApi.getById(id);
-      
-      // Then publish it
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.update(id, {
-        ...blogPost,
-        state: 'PUBLISHED'
-      } as any);
-      
-      // Return the response directly to avoid type issues
-      return this.formatResponse(response);
-    } catch (error) {
-      return this.handleApiError(error, 'publishBlogPost');
-    }
-  }
-
-  /**
-   * Schedule a blog post for future publishing
-   * 
-   * @param id - Blog post ID
-   * @param publishDate - Date to publish the blog post (ISO8601 format)
-   * @returns Scheduled blog post data
-   */
-  async scheduleBlogPost(id: string, publishDate: string): Promise<any> {
-    try {
-      // First get the blog post
-      const blogPost = await this.client.cms.blogs.blogPosts.blogPostsApi.getById(id);
-      
-      // Then schedule it
-      const response = await this.client.cms.blogs.blogPosts.blogPostsApi.update(id, {
-        ...blogPost,
-        state: 'SCHEDULED',
-        publishDate: new Date(publishDate)
-      } as any);
-      
-      // Return the response directly to avoid type issues
-      return this.formatResponse(response);
-    } catch (error) {
-      return this.handleApiError(error, 'scheduleBlogPost');
-    }
-  }
-
-  /**
-   * Search blog posts
-   * 
-   * @param query - Search query
-   * @param limit - Maximum number of results
-   * @returns Matching blog posts
-   */
-  async searchBlogPosts(query: string, limit: number = 10): Promise<any[]> {
-    try {
-      // Use any to bypass type checking for the getPage method
-      const getPage = this.client.cms.blogs.blogPosts.blogPostsApi.getPage as any;
-      const response = await getPage(
-        limit,
-        undefined,
-        undefined,
-        undefined,
-        ['name', 'slug', 'state', 'publishDate', 'postBody']
-      );
-      
-      // Return the results directly to avoid type issues
-      return this.formatResponse(response.results);
-    } catch (error) {
-      return this.handleApiError(error, 'searchBlogPosts');
-    }
-  }
 
   /**
    * Get recent blog posts
@@ -647,16 +684,63 @@ export class HubspotApiClient {
    */
   async getRecentBlogPosts(limit: number = 10): Promise<any[]> {
     try {
-      // Use any to bypass type checking for the getPage method
-      const getPage = this.client.cms.blogs.blogPosts.blogPostsApi.getPage as any;
-      const response = await getPage(
-        limit
-      );
+      // Use fetch directly to get recent blog posts
+      const accessToken = this.getAccessToken();
+      
+      const url = `https://api.hubapi.com/cms/v3/blogs/posts?limit=${limit}&sort=-updatedAt`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get recent blog posts: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
       
       // Return the results directly to avoid type issues
-      return this.formatResponse(response.results);
+      return this.formatResponse(data.results || []);
     } catch (error) {
       return this.handleApiError(error, 'getRecentBlogPosts');
+    }
+  }
+
+  /**
+   * Get list of blogs
+   * 
+   * @param limit - Maximum number of results
+   * @param offset - Offset for pagination
+   * @returns List of blogs
+   */
+  async getBlogs(limit: number = 20, offset: number = 0): Promise<any[]> {
+    try {
+      // Get the access token from environment variables
+      const accessToken = this.getAccessToken();
+      
+      // Use the v2 blogs API to get a list of blogs
+      const url = `https://api.hubapi.com/content/api/v2/blogs?limit=${limit}&offset=${offset}`;
+      
+      const headers = {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      };
+      
+      const response = await fetch(url, { headers });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get blogs: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Return the blogs array
+      return this.formatResponse(data.objects || []);
+    } catch (error) {
+      return this.handleApiError(error, 'getBlogs');
     }
   }
 }

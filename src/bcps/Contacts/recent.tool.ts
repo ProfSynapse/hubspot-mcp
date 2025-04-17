@@ -14,6 +14,12 @@ import { createHubspotApiClient } from '../../core/hubspot-client.js';
 const inputSchema: InputSchema = {
   type: 'object',
   properties: {
+    operation: {
+      type: 'string',
+      description: 'Operation type (always "recent" for this tool)',
+      enum: ['recent'],
+      default: 'recent'
+    },
     limit: {
       type: 'integer',
       description: 'Maximum number of results to return',
