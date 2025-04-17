@@ -1,46 +1,23 @@
 {
-    "name": "hubspot-mcp-server",
-    "version": "0.1.0",
-    "private": true,
-    "description": "Hubspot MCP Server - A Model Context Protocol server for Hubspot CRM integration",
-    "type": "module",
-    "main": "build/index.js",
-    "bin": {
-        "hubspot-mcp-server": "build/index.js"
-    },
-    "files": [
-        "build",
-        "README.md",
-        "LICENSE"
-    ],
-    "scripts": {
-        "build": "tsc",
-        "start": "node build/index.js",
-        "dev": "tsc -w",
-        "prepare": "echo \"Skipping prepare script\"",
-        "test": "echo \"No tests specified\" && exit 0"
-    },
-    "keywords": [
-        "mcp",
-        "ai",
-        "model-context-protocol",
-        "hubspot",
-        "crm",
-        "server"
-    ],
-    "author": "",
-    "license": "MIT",
-    "dependencies": {
-        "@hubspot/api-client": "^10.1.0",
-        "@modelcontextprotocol/sdk": "0.6.0",
-        "axios": "^1.6.7",
-        "dotenv": "^16.4.1"
-    },
-    "devDependencies": {
-        "@types/node": "^20.11.16",
-        "typescript": "^5.3.3"
-    },
-    "engines": {
-        "node": ">=18.0.0"
-    }
+  "name": "hubspot-bcp",
+  "version": "0.1.0",
+  "description": "HubSpot MCP server using Bounded Context Packs pattern",
+  "type": "module",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node build/index.js",
+    "dev": "tsc -w",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@hubspot/api-client": "^9.0.0",
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "fast-glob": "^3.3.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
 }
