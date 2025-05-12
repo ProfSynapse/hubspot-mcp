@@ -9,6 +9,9 @@ import { createHubspotApiClient, HubspotApiClient } from './hubspot-client.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { noteTools } from '../bcps/Notes/index.js';
+import { associationTools } from '../bcps/Associations/index.js';
+import { ToolDefinition, validateParams } from './types.js'; // Ensure ToolDefinition and validateParams are imported
 
 /**
  * HubSpotBCPServer class
@@ -52,6 +55,12 @@ export class HubspotBCPServer {
     // Register BlogPosts tools
     this.registerBlogPostsTools();
     
+    // Register Notes tools
+    this.registerNotesTools();
+    
+    // Register Associations tools
+    this.registerAssociationsTools();
+    
     // Register Deals tools (future)
     // this.registerDealsTools();
   }
@@ -61,7 +70,7 @@ export class HubspotBCPServer {
    */
   private getAvailableBCPs(): string[] {
     // Return the list of available BCPs
-    return ['Companies', 'Contacts', 'Deals'];
+    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations'];
   }
   
   /**
@@ -324,6 +333,225 @@ export class HubspotBCPServer {
   }
 
   /**
+   * Register Notes tools
+   */
+  private registerNotesTools(): void {
+    // Define a combined schema for all note operations
+    // This requires careful merging of individual tool schemas
+    const noteOperationEnum = z.enum(['create', 'get', 'update', 'delete', 'list', 'recent']);
+    
+    // Consolidate all properties from individual note tools' inputSchemas
+    // This is a simplified approach; a more robust solution might involve dynamic schema generation
+    // or a more complex Zod schema that varies based on 'operation'.
+    const allNoteParams = {
+      operation: noteOperationEnum.describe('Operation to perform for notes'),
+      // Params for createNote
+      content: z.string().optional().describe('Content of the note (required for create)'),
+      // ownerId is used by create and update
+      ownerId: z.string().optional().describe('HubSpot owner ID for the note'),
+      // metadata is used by create and update
+      metadata: z.record(z.string().or(z.number()).or(z.boolean())).optional().describe('Custom properties for the note'),
+      // id is used by get, update, delete
+      id: z.string().optional().describe('Note ID (required for get, update, delete)'),
+      // Params for listNotes
+      startTimestamp: z.string().optional().describe('Start timestamp for list filter (ISO 8601)'),
+      endTimestamp: z.string().optional().describe('End timestamp for list filter (ISO 8601)'),
+      // after is used by listNotes
+      after: z.string().optional().describe('Pagination cursor for listNotes'),
+      // limit is used by listNotes and getRecentNotes
+      limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
+    };
+
+    this.server.tool(
+      'hubspotNote',
+      allNoteParams,
+      async (params: any) => {
+        try {
+          const { operation, ...operationParams } = params;
+          let selectedTool: ToolDefinition | undefined;
+
+          switch (operation) {
+            case 'create':
+              selectedTool = noteTools.find(t => t.name === 'createNote');
+              break;
+            case 'get':
+              selectedTool = noteTools.find(t => t.name === 'getNote');
+              break;
+            case 'update':
+              selectedTool = noteTools.find(t => t.name === 'updateNote');
+              break;
+            case 'delete':
+              selectedTool = noteTools.find(t => t.name === 'deleteNote');
+              break;
+            case 'list':
+              selectedTool = noteTools.find(t => t.name === 'listNotes');
+              break;
+            case 'recent':
+              selectedTool = noteTools.find(t => t.name === 'getRecentNotes');
+              break;
+            default:
+              throw new Error(`Unknown note operation: ${operation}`);
+          }
+
+          if (!selectedTool || !selectedTool.handler) {
+            throw new Error(`Handler not found for note operation: ${operation}`);
+          }
+          
+          // Validate parameters against the tool's inputSchema
+          if (selectedTool.inputSchema) {
+            try {
+              // This will throw an error if validation fails
+              validateParams(operationParams, selectedTool.inputSchema, selectedTool.name);
+            } catch (validationError) {
+              throw new Error(`Error performing note operation: ${(validationError as Error).message}`);
+            }
+          }
+          
+          const result = await selectedTool.handler(operationParams);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+
+        } catch (error) {
+          // Ensure error is an instance of Error
+          const err = error instanceof Error ? error : new Error(String(error));
+          return {
+            content: [{ type: 'text', text: `Error performing note operation: ${err.message}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Register Associations tools
+   */
+  private registerAssociationsTools(): void {
+    // Define a combined schema for all association operations
+    const associationOperationEnum = z.enum(['create', 'createDefault', 'delete', 'list', 'batchCreate', 'batchCreateDefault', 'batchDelete', 'batchRead', 'deleteLabels', 'getAssociationTypes', 'getAssociationTypeReference']);
+    
+    // Consolidate all properties from individual association tools' inputSchemas
+    const allAssociationParams = {
+      operation: associationOperationEnum.describe('Operation to perform for associations'),
+      // Common parameters
+      fromObjectType: z.string().optional().describe('The type of the first object (e.g., "contacts", "companies")'),
+      toObjectType: z.string().optional().describe('The type of the second object'),
+      // Parameters for single operations
+      fromObjectId: z.string().optional().describe('The ID of the first object (for single operations)'),
+      toObjectId: z.string().optional().describe('The ID of the second object (for single operations)'),
+      // Parameters for batch operations
+      associations: z.array(z.any()).optional().describe('The associations to create/delete (for batch operations)'),
+      inputs: z.array(z.any()).optional().describe('The objects to read associations for (for batchRead)'),
+      // Parameters for list operation
+      objectType: z.string().optional().describe('The type of the object (for list operation)'),
+      objectId: z.string().optional().describe('The ID of the object (for list operation)'),
+      limit: z.number().int().min(1).max(500).optional().describe('Maximum number of results (for list operation)'),
+      after: z.string().optional().describe('Pagination cursor (for list operation)'),
+      // Parameters for association types
+      associationCategory: z.string().optional().describe('The category of the association'),
+      associationTypeId: z.number().optional().describe('The ID of the association type'),
+      types: z.array(z.any()).optional().describe('The types of associations to create/delete'),
+    };
+
+    this.server.tool(
+      'hubspotAssociation',
+      allAssociationParams,
+      async (params: any) => {
+        try {
+          const { operation, ...operationParams } = params;
+          let selectedTool: ToolDefinition | undefined;
+
+          switch (operation) {
+            case 'create':
+              selectedTool = associationTools.find(t => t.name === 'createAssociation');
+              break;
+            case 'createDefault':
+              selectedTool = associationTools.find(t => t.name === 'createDefaultAssociation');
+              break;
+            case 'delete':
+              selectedTool = associationTools.find(t => t.name === 'deleteAssociation');
+              break;
+            case 'list':
+              selectedTool = associationTools.find(t => t.name === 'listAssociations');
+              break;
+            case 'batchCreate':
+              selectedTool = associationTools.find(t => t.name === 'batchCreateAssociations');
+              break;
+            case 'batchCreateDefault':
+              selectedTool = associationTools.find(t => t.name === 'batchCreateDefaultAssociations');
+              break;
+            case 'batchDelete':
+              selectedTool = associationTools.find(t => t.name === 'batchDeleteAssociations');
+              break;
+            case 'batchRead':
+              selectedTool = associationTools.find(t => t.name === 'batchReadAssociations');
+              break;
+            case 'deleteLabels':
+              selectedTool = associationTools.find(t => t.name === 'deleteAssociationLabels');
+              break;
+            case 'getAssociationTypes':
+              selectedTool = associationTools.find(t => t.name === 'getAssociationTypes');
+              break;
+            case 'getAssociationTypeReference':
+              selectedTool = associationTools.find(t => t.name === 'getAssociationTypeReference');
+              break;
+            default:
+              throw new Error(`Unknown association operation: ${operation}`);
+          }
+
+          if (!selectedTool || !selectedTool.handler) {
+            throw new Error(`Handler not found for association operation: ${operation}`);
+          }
+          
+          // Special handling for parameter mapping
+          // Map parameters from the combined schema to the expected schema for specific operations
+          if (operation === 'list') {
+            if (operationParams.objectType && !operationParams.fromObjectType) {
+              operationParams.fromObjectType = operationParams.objectType;
+            }
+            
+            if (operationParams.objectId && !operationParams.fromObjectId) {
+              operationParams.fromObjectId = operationParams.objectId;
+            }
+          }
+          
+          // Special handling for batchRead operation
+          if (operation === 'batchRead' && !operationParams.fromObjectType && 
+              operationParams.inputs && operationParams.inputs.length > 0 && 
+              operationParams.inputs[0].type) {
+            operationParams.fromObjectType = operationParams.inputs[0].type;
+            console.log(`Server extracted fromObjectType from inputs: ${operationParams.fromObjectType}`);
+          }
+          
+          // Validate parameters against the tool's inputSchema
+          if (selectedTool.inputSchema) {
+            try {
+              // This will throw an error if validation fails
+              validateParams(operationParams, selectedTool.inputSchema, selectedTool.name);
+            } catch (validationError) {
+              throw new Error(`Error performing association operation: ${(validationError as Error).message}`);
+            }
+          }
+          
+          const result = await selectedTool.handler(operationParams);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+
+        } catch (error) {
+          // Ensure error is an instance of Error
+          const err = error instanceof Error ? error : new Error(String(error));
+          return {
+            content: [{ type: 'text', text: `Error performing association operation: ${err.message}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
    * Register BlogPosts tools
    */
   private registerBlogPostsTools(): void {
@@ -463,6 +691,8 @@ export class HubspotBCPServer {
       console.error('- hubspotCompany: Company operations (create, get, update, delete, search, recent)');
       console.error('- hubspotContact: Contact operations (create, get, update, delete, search, recent)');
       console.error('- hubspotBlogPost: Blog post operations (create, get, update, delete, recent)');
+      console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent)');
+      console.error('- hubspotAssociation: Association operations (create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels)');
     } catch (error) {
       console.error('Failed to start server:', error);
       throw error;
