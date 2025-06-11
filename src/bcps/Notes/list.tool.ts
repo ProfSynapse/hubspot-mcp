@@ -14,7 +14,7 @@ const inputSchema: InputSchema = {
   properties: {
     ownerId: {
       type: 'string',
-      description: 'Filter notes by owner ID',
+      description: 'Filter notes by owner ID. You can find owner IDs by looking at existing contacts, deals, or other records that have hubspot_owner_id properties.',
     },
     startTimestamp: {
       type: 'string',

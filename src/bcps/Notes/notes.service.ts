@@ -202,6 +202,14 @@ export class NotesService extends HubspotBaseService {
       // Fetch the created note again with associations to ensure consistent response structure
       return this.getNote(response.id, true);
     } catch (e: any) {
+      // Check for owner ID validation errors
+      if (e.body?.message?.includes('hubspot_owner_id') || e.body?.message?.includes('owner')) {
+        throw new BcpError(
+          `Invalid owner ID provided. You can find valid owner IDs by looking at existing contacts, deals, or other records that have hubspot_owner_id properties. Original error: ${e.body?.message || e.message}`,
+          'VALIDATION_ERROR',
+          400
+        );
+      }
       this.handleApiError(e, 'Failed to create note');
     }
   }
@@ -291,6 +299,14 @@ export class NotesService extends HubspotBaseService {
     } catch (e: any) {
       if (e.code === 404 || e.body?.category === 'OBJECT_NOT_FOUND') {
         throw new BcpError(`Note with ID '${id}' not found for update.`, 'NOT_FOUND', 404);
+      }
+      // Check for owner ID validation errors
+      if (e.body?.message?.includes('hubspot_owner_id') || e.body?.message?.includes('owner')) {
+        throw new BcpError(
+          `Invalid owner ID provided in update. You can find valid owner IDs by looking at existing contacts, deals, or other records that have hubspot_owner_id properties. Original error: ${e.body?.message || e.message}`,
+          'VALIDATION_ERROR',
+          400
+        );
       }
       this.handleApiError(e, `Failed to update note with ID ${id}`);
     }

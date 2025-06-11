@@ -42,6 +42,26 @@ const associationTypeCache: AssociationTypeCache = {
     }
   },
   
+  // Quotes to other objects
+  'quotes': {
+    'line_items': {
+      'quote_to_line_item': 35
+    },
+    'deals': {
+      'default': 64
+    }
+  },
+  
+  // Line items to other objects
+  'line_items': {
+    'quotes': {
+      'line_item_to_quote': 36
+    },
+    'deals': {
+      'line_item_to_deal': 19
+    }
+  },
+  
   // Contacts to other objects
   'contacts': {
     'companies': {

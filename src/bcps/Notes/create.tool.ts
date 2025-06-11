@@ -18,7 +18,7 @@ const inputSchema: InputSchema = {
     },
     ownerId: {
       type: 'string',
-      description: 'HubSpot owner ID for the note',
+      description: 'HubSpot owner ID for the note. This is optional - if not provided, the note may be assigned to the current user or remain unassigned. You can find owner IDs by looking at existing contacts, deals, or other records that have hubspot_owner_id properties.',
     },
     associations: {
       type: 'array',

@@ -22,7 +22,7 @@ const inputSchema: InputSchema = {
     },
     ownerId: {
       type: 'string',
-      description: 'Updated HubSpot owner ID for the note',
+      description: 'Updated HubSpot owner ID for the note. You can find owner IDs by looking at existing contacts, deals, or other records that have hubspot_owner_id properties.',
     },
     metadata: {
       type: 'object',

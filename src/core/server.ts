@@ -11,6 +11,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { noteTools } from '../bcps/Notes/index.js';
 import { associationTools } from '../bcps/Associations/index.js';
+// import { ownersBcp } from '../bcps/Owners/index.js'; // Disabled - API not working properly
 import { ToolDefinition, validateParams } from './types.js'; // Ensure ToolDefinition and validateParams are imported
 
 /**
@@ -61,8 +62,14 @@ export class HubspotBCPServer {
     // Register Associations tools
     this.registerAssociationsTools();
     
-    // Register Deals tools (future)
-    // this.registerDealsTools();
+    // Register Quotes tools
+    this.registerQuotesTools();
+    
+    // Register Deals tools
+    this.registerDealsTools();
+    
+    // Register Owners tools - DISABLED (API not working properly)
+    // this.registerOwnersTools();
   }
   
   /**
@@ -70,7 +77,7 @@ export class HubspotBCPServer {
    */
   private getAvailableBCPs(): string[] {
     // Return the list of available BCPs
-    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations'];
+    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes'];
   }
   
   /**
@@ -677,6 +684,362 @@ export class HubspotBCPServer {
   }
 
   /**
+   * Register Deals tools
+   */
+  private registerDealsTools(): void {
+    // Register the main Deals tool
+    this.server.tool(
+      'hubspotDeal',
+      {
+        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent', 'batchCreate', 'batchUpdate']).describe('Operation to perform'),
+        
+        // Parameters for create operation
+        dealname: z.string().optional().describe('Deal name (required for create operation)'),
+        pipeline: z.string().optional().describe('Pipeline ID the deal belongs to'),
+        dealstage: z.string().optional().describe('Deal stage ID within the pipeline'),
+        amount: z.string().optional().describe('Deal amount in currency'),
+        closedate: z.string().optional().describe('Expected close date (ISO 8601 format: YYYY-MM-DD)'),
+        description: z.string().optional().describe('Deal description'),
+        hubspot_owner_id: z.string().optional().describe('HubSpot owner ID for the deal'),
+        
+        // Parameters for get/update/delete operations
+        id: z.string().optional().describe('Deal ID (required for get, update, and delete operations)'),
+        
+        // Parameters for search operation
+        searchType: z.enum(['name', 'modifiedDate', 'custom']).optional().describe('Type of search to perform'),
+        query: z.string().optional().describe('Search query (for name search) or ISO date string (for modifiedDate search)'),
+        customSearch: z.object({
+          filterGroups: z.array(z.object({
+            filters: z.array(z.object({
+              propertyName: z.string(),
+              operator: z.string(),
+              value: z.string()
+            }))
+          })),
+          sorts: z.array(z.object({
+            propertyName: z.string(),
+            direction: z.enum(['ASCENDING', 'DESCENDING'])
+          })).optional(),
+          properties: z.array(z.string()).optional(),
+          limit: z.number().optional(),
+          after: z.number().optional()
+        }).optional().describe('Custom search request (for advanced searches)'),
+        
+        // Parameters for batch operations
+        deals: z.array(z.object({
+          dealname: z.string(),
+          pipeline: z.string().optional(),
+          dealstage: z.string().optional(),
+          amount: z.string().optional(),
+          closedate: z.string().optional(),
+          description: z.string().optional(),
+          hubspot_owner_id: z.string().optional()
+        })).optional().describe('Array of deals to create (for batchCreate)'),
+        updates: z.array(z.object({
+          id: z.string(),
+          properties: z.object({
+            dealname: z.string().optional(),
+            pipeline: z.string().optional(),
+            dealstage: z.string().optional(),
+            amount: z.string().optional(),
+            closedate: z.string().optional(),
+            description: z.string().optional(),
+            hubspot_owner_id: z.string().optional()
+          })
+        })).optional().describe('Array of deal updates (for batchUpdate)'),
+        
+        // Common parameters
+        limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of results (for search and recent operations)'),
+        properties: z.record(z.string()).optional().describe('Additional properties for create/update operations')
+      },
+      async (params) => {
+        try {
+          const { operation } = params;
+          
+          // Validate operation-specific parameters
+          switch (operation) {
+            case 'create':
+              if (!params.dealname) {
+                throw new Error('Deal name is required for create operation');
+              }
+              break;
+            case 'get':
+            case 'update':
+            case 'delete':
+              if (!params.id) {
+                throw new Error('Deal ID is required for get, update, and delete operations');
+              }
+              break;
+            case 'search':
+              if (!params.searchType) {
+                throw new Error('Search type is required for search operation');
+              }
+              if (params.searchType !== 'custom' && !params.query) {
+                throw new Error('Query is required for name and modifiedDate search');
+              }
+              if (params.searchType === 'custom' && !params.customSearch) {
+                throw new Error('customSearch object is required for custom search');
+              }
+              break;
+            case 'batchCreate':
+              if (!params.deals || params.deals.length === 0) {
+                throw new Error('Deals array is required for batchCreate operation');
+              }
+              break;
+            case 'batchUpdate':
+              if (!params.updates || params.updates.length === 0) {
+                throw new Error('Updates array is required for batchUpdate operation');
+              }
+              break;
+          }
+          
+          // Dispatch to the appropriate operation
+          let result;
+          switch (operation) {
+            case 'create':
+              // Prepare deal properties
+              const properties: Record<string, any> = {
+                dealname: params.dealname,
+                ...(params.pipeline && { pipeline: params.pipeline }),
+                ...(params.dealstage && { dealstage: params.dealstage }),
+                ...(params.amount && { amount: params.amount }),
+                ...(params.closedate && { closedate: params.closedate }),
+                ...(params.description && { description: params.description }),
+                ...(params.hubspot_owner_id && { hubspot_owner_id: params.hubspot_owner_id }),
+                ...(params.properties || {})
+              };
+              
+              result = await this.apiClient.createDeal(properties);
+              break;
+              
+            case 'get':
+              result = await this.apiClient.getDeal(params.id as string);
+              break;
+              
+            case 'update':
+              // Prepare update properties
+              const updateProps: Record<string, any> = {
+                ...(params.dealname && { dealname: params.dealname }),
+                ...(params.pipeline && { pipeline: params.pipeline }),
+                ...(params.dealstage && { dealstage: params.dealstage }),
+                ...(params.amount && { amount: params.amount }),
+                ...(params.closedate && { closedate: params.closedate }),
+                ...(params.description && { description: params.description }),
+                ...(params.hubspot_owner_id && { hubspot_owner_id: params.hubspot_owner_id }),
+                ...(params.properties || {})
+              };
+              
+              result = await this.apiClient.updateDeal(params.id as string, updateProps);
+              break;
+              
+            case 'delete':
+              await this.apiClient.deleteDeal(params.id as string);
+              result = { message: `Deal ${params.id} deleted successfully` };
+              break;
+              
+            case 'search':
+              if (params.searchType === 'name') {
+                result = await this.apiClient.searchDealsByName(params.query as string, params.limit);
+              } else if (params.searchType === 'modifiedDate') {
+                const date = new Date(params.query as string);
+                if (isNaN(date.getTime())) {
+                  throw new Error('Invalid date format. Please use ISO 8601 format.');
+                }
+                result = await this.apiClient.searchDealsByModifiedDate(date, params.limit);
+              } else if (params.searchType === 'custom' && params.customSearch) {
+                result = await this.apiClient.searchDeals(params.customSearch);
+              }
+              break;
+              
+            case 'recent':
+              result = await this.apiClient.getRecentDeals(params.limit);
+              break;
+              
+            case 'batchCreate':
+              result = await this.apiClient.batchCreateDeals(params.deals as any[]);
+              break;
+              
+            case 'batchUpdate':
+              result = await this.apiClient.batchUpdateDeals(params.updates as any[]);
+              break;
+              
+            default:
+              throw new Error(`Unknown operation: ${operation}`);
+          }
+          
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        } catch (error) {
+          return {
+            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Register Quotes tools
+   */
+  private registerQuotesTools(): void {
+    // Register the main Quotes tool
+    this.server.tool(
+      'hubspotQuote',
+      {
+        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem']).describe('Operation to perform'),
+        
+        // Parameters for create operation
+        title: z.string().optional().describe('Quote title (required for create operation)'),
+        expirationDate: z.string().optional().describe('Quote expiration date (ISO 8601 format)'),
+        status: z.enum(['DRAFT', 'APPROVAL_NOT_NEEDED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'PENDING_BUYER_ACTION', 'ACCEPTED', 'DECLINED', 'LOST', 'WON']).optional().describe('Quote status'),
+        currency: z.string().optional().describe('Currency code (e.g., USD, EUR, GBP)'),
+        language: z.string().optional().describe('Language code (e.g., en, es, fr)'),
+        locale: z.string().optional().describe('Locale code (e.g., en-US, es-MX)'),
+        senderCompanyName: z.string().optional().describe('Sender company name'),
+        senderCompanyAddress: z.string().optional().describe('Sender company address'),
+        senderCompanyCity: z.string().optional().describe('Sender company city'),
+        senderCompanyState: z.string().optional().describe('Sender company state/province'),
+        senderCompanyZip: z.string().optional().describe('Sender company postal code'),
+        senderCompanyCountry: z.string().optional().describe('Sender company country'),
+        senderFirstName: z.string().optional().describe('Sender first name'),
+        senderLastName: z.string().optional().describe('Sender last name'),
+        senderEmail: z.string().optional().describe('Sender email address'),
+        senderPhone: z.string().optional().describe('Sender phone number'),
+        senderJobTitle: z.string().optional().describe('Sender job title'),
+        
+        // Parameters for get/update/delete operations
+        id: z.string().optional().describe('Quote ID (required for get, update, and delete operations)'),
+        
+        // Parameters for search operation
+        searchType: z.enum(['title', 'status']).optional().describe('Type of search to perform'),
+        searchTerm: z.string().optional().describe('Search term (title text for title search, or status value for status search)'),
+        
+        // Common parameters
+        limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of results (for search and recent operations)'),
+        
+        // Line item parameters
+        quoteId: z.string().optional().describe('Quote ID (required for addLineItem, listLineItems, removeLineItem operations)'),
+        lineItemId: z.string().optional().describe('Line item ID (required for updateLineItem, removeLineItem operations)'),
+        name: z.string().optional().describe('Line item name (required for addLineItem)'),
+        productId: z.string().optional().describe('Product ID from HubSpot product library'),
+        quantity: z.number().optional().describe('Quantity for line item'),
+        price: z.number().optional().describe('Unit price for line item'),
+        discount: z.number().optional().describe('Discount amount for line item'),
+        discountPercentage: z.number().optional().describe('Discount percentage (0-100)'),
+        termInMonths: z.number().optional().describe('Term length in months for recurring items'),
+        recurringBillingPeriod: z.enum(['monthly', 'quarterly', 'semiannually', 'annually', 'per_two_years', 'per_three_years']).optional().describe('Recurring billing period'),
+        description: z.string().optional().describe('Line item description')
+      },
+      async (params) => {
+        try {
+          const { operation } = params;
+          
+          // Dispatch to the appropriate operation using the Quotes BCP
+          const { bcp } = await import('../bcps/Quotes/index.js');
+          
+          // Find the appropriate tool based on operation
+          let toolName;
+          switch (operation) {
+            case 'create':
+              toolName = 'create';
+              if (!params.title) {
+                throw new Error('Quote title is required for create operation');
+              }
+              break;
+            case 'get':
+              toolName = 'get';
+              if (!params.id) {
+                throw new Error('Quote ID is required for get operation');
+              }
+              break;
+            case 'update':
+              toolName = 'update';
+              if (!params.id) {
+                throw new Error('Quote ID is required for update operation');
+              }
+              break;
+            case 'delete':
+              toolName = 'delete';
+              if (!params.id) {
+                throw new Error('Quote ID is required for delete operation');
+              }
+              break;
+            case 'search':
+              toolName = 'search';
+              if (!params.searchType && !params.status) {
+                throw new Error('Either searchType with searchTerm, or status is required for search operation');
+              }
+              break;
+            case 'recent':
+              toolName = 'recent';
+              break;
+            case 'addLineItem':
+              toolName = 'addLineItem';
+              if (!params.quoteId) {
+                throw new Error('Quote ID is required for addLineItem operation');
+              }
+              if (!params.name) {
+                throw new Error('Line item name is required for addLineItem operation');
+              }
+              break;
+            case 'listLineItems':
+              toolName = 'listLineItems';
+              if (!params.quoteId) {
+                throw new Error('Quote ID is required for listLineItems operation');
+              }
+              break;
+            case 'updateLineItem':
+              toolName = 'updateLineItem';
+              if (!params.lineItemId) {
+                throw new Error('Line item ID is required for updateLineItem operation');
+              }
+              break;
+            case 'removeLineItem':
+              toolName = 'removeLineItem';
+              if (!params.quoteId || !params.lineItemId) {
+                throw new Error('Quote ID and line item ID are required for removeLineItem operation');
+              }
+              break;
+            default:
+              throw new Error(`Unknown operation: ${operation}`);
+          }
+          
+          // Find the tool
+          const tool = bcp.tools.find(t => t.name === toolName);
+          if (!tool || !tool.handler) {
+            throw new Error(`Tool handler not found for operation: ${operation}`);
+          }
+          
+          // Execute the tool handler
+          const result = await tool.handler(params);
+          
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        } catch (error) {
+          return {
+            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Register Owners tools - DISABLED
+   * The owners API endpoints are not working properly with the current HubSpot setup.
+   * Keeping this method commented out for future reference.
+   */
+  /*
+  private registerOwnersTools(): void {
+    // Implementation disabled - owners API not working properly
+  }
+  */
+
+  /**
    * Start the server
    */
   async start(): Promise<void> {
@@ -690,9 +1053,11 @@ export class HubspotBCPServer {
       console.error('Available tools:');
       console.error('- hubspotCompany: Company operations (create, get, update, delete, search, recent)');
       console.error('- hubspotContact: Contact operations (create, get, update, delete, search, recent)');
+      console.error('- hubspotDeal: Deal operations (create, get, update, delete, search, recent, batchCreate, batchUpdate)');
       console.error('- hubspotBlogPost: Blog post operations (create, get, update, delete, recent)');
       console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent)');
       console.error('- hubspotAssociation: Association operations (create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels)');
+      console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent)');
     } catch (error) {
       console.error('Failed to start server:', error);
       throw error;

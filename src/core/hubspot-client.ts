@@ -743,6 +743,251 @@ export class HubspotApiClient {
       return this.handleApiError(error, 'getBlogs');
     }
   }
+
+  //=============================================================================
+  // DEALS API METHODS
+  //=============================================================================
+
+  /**
+   * Create a deal
+   * 
+   * @param properties - Deal properties
+   * @returns Created deal data
+   */
+  async createDeal(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.deals.basicApi.create({
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createDeal');
+    }
+  }
+
+  /**
+   * Get deal by ID
+   * 
+   * @param id - Deal ID
+   * @returns Deal data
+   */
+  async getDeal(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.deals.basicApi.getById(id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getDeal');
+    }
+  }
+
+  /**
+   * Update deal properties
+   * 
+   * @param id - Deal ID
+   * @param properties - Properties to update
+   * @returns Updated deal data
+   */
+  async updateDeal(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.deals.basicApi.update(id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateDeal');
+    }
+  }
+
+  /**
+   * Delete/archive a deal
+   * 
+   * @param id - Deal ID
+   */
+  async deleteDeal(id: string): Promise<void> {
+    try {
+      await this.client.crm.deals.basicApi.archive(id);
+    } catch (error) {
+      this.handleApiError(error, 'deleteDeal');
+    }
+  }
+
+  /**
+   * Search deals
+   * 
+   * @param searchRequest - Search request
+   * @returns Matching deals
+   */
+  async searchDeals(searchRequest: any): Promise<any[]> {
+    try {
+      const response = await this.client.crm.deals.searchApi.doSearch(searchRequest);
+      
+      return this.formatResponse(response.results.map(deal => ({
+        id: deal.id,
+        properties: deal.properties,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchDeals');
+    }
+  }
+
+  /**
+   * Search deals by name
+   * 
+   * @param name - Name to search for
+   * @param limit - Maximum number of results
+   * @returns Matching deals
+   */
+  async searchDealsByName(name: string, limit: number = 10): Promise<any[]> {
+    try {
+      const searchRequest = {
+        filterGroups: [{
+          filters: [{
+            propertyName: 'dealname',
+            operator: 'CONTAINS_TOKEN',
+            value: name
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['dealname', 'amount', 'closedate', 'dealstage', 'pipeline', 'description']
+      };
+
+      return await this.searchDeals(searchRequest);
+    } catch (error) {
+      return this.handleApiError(error, 'searchDealsByName');
+    }
+  }
+
+  /**
+   * Search deals by modified date
+   * 
+   * @param date - Modified date
+   * @param limit - Maximum number of results
+   * @returns Matching deals
+   */
+  async searchDealsByModifiedDate(date: Date, limit: number = 100): Promise<any[]> {
+    try {
+      const searchRequest = {
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_lastmodifieddate',
+            operator: 'GTE',
+            value: date.getTime().toString()
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['dealname', 'amount', 'closedate', 'dealstage', 'pipeline', 'description']
+      };
+
+      return await this.searchDeals(searchRequest);
+    } catch (error) {
+      return this.handleApiError(error, 'searchDealsByModifiedDate');
+    }
+  }
+
+  /**
+   * Get recent deals
+   * 
+   * @param limit - Maximum number of results
+   * @returns Recent deals
+   */
+  async getRecentDeals(limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.deals.basicApi.getPage(
+        limit,
+        undefined,
+        undefined,
+        undefined,
+        ['dealname', 'amount', 'closedate', 'dealstage', 'pipeline', 'description'],
+        false
+      );
+      
+      return this.formatResponse(response.results.map(deal => ({
+        id: deal.id,
+        properties: deal.properties,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'getRecentDeals');
+    }
+  }
+
+  /**
+   * Batch create deals
+   * 
+   * @param dealsInput - Array of deal properties
+   * @returns Created deals
+   */
+  async batchCreateDeals(dealsInput: Array<Record<string, any>>): Promise<any[]> {
+    try {
+      const inputs = dealsInput.map(properties => ({
+        properties,
+        associations: []
+      }));
+
+      const response = await this.client.crm.deals.batchApi.create({ inputs });
+      
+      return this.formatResponse(response.results.map(deal => ({
+        id: deal.id,
+        properties: deal.properties,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'batchCreateDeals');
+    }
+  }
+
+  /**
+   * Batch update deals
+   * 
+   * @param updates - Array of deal updates
+   * @returns Updated deals
+   */
+  async batchUpdateDeals(updates: Array<{ id: string; properties: Record<string, any> }>): Promise<any[]> {
+    try {
+      const inputs = updates.map(({ id, properties }) => ({
+        id,
+        properties
+      }));
+
+      const response = await this.client.crm.deals.batchApi.update({ inputs });
+      
+      return this.formatResponse(response.results.map(deal => ({
+        id: deal.id,
+        properties: deal.properties,
+        createdAt: deal.createdAt,
+        updatedAt: deal.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'batchUpdateDeals');
+    }
+  }
 }
 
 /**

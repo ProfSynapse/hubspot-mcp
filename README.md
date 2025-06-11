@@ -33,6 +33,18 @@ A Model Context Protocol server for HubSpot integration using the Bounded Contex
   - Publish: `hubspotBlogPost({ operation: "publish", id: "123456" })`
   - Schedule: `hubspotBlogPost({ operation: "schedule", id: "123456", publishDate: "2025-05-01T10:00:00Z" })`
 
+### hubspotQuote
+- **Operations**: create, get, update, delete, search, recent, addLineItem, listLineItems, updateLineItem, removeLineItem
+- **Examples**:
+  - Create: `hubspotQuote({ operation: "create", title: "Q-2024-001", expirationDate: "2024-12-31", status: "DRAFT" })`
+  - Get: `hubspotQuote({ operation: "get", id: "123456" })`
+  - Search by status: `hubspotQuote({ operation: "search", searchType: "status", searchTerm: "DRAFT" })`
+  - Update: `hubspotQuote({ operation: "update", id: "123456", status: "PENDING_APPROVAL" })`
+  - Add line item: `hubspotQuote({ operation: "addLineItem", quoteId: "123456", name: "Product A", quantity: 2, price: 99.99 })`
+  - List line items: `hubspotQuote({ operation: "listLineItems", quoteId: "123456" })`
+  - Update line item: `hubspotQuote({ operation: "updateLineItem", lineItemId: "789", quantity: 3, discount: 10 })`
+  - Remove line item: `hubspotQuote({ operation: "removeLineItem", quoteId: "123456", lineItemId: "789" })`
+
 ## Setup
 
 1. Install dependencies:
