@@ -25,13 +25,32 @@ A Model Context Protocol server for HubSpot integration using the Bounded Contex
   - Get: `hubspotContact({ operation: "get", id: "123456" })`
   - Search: `hubspotContact({ operation: "search", searchType: "email", searchTerm: "john@example.com" })`
 
+### hubspotDeal
+- **Operations**: create, get, update, delete, search, recent, batchCreate, batchUpdate
+- **Examples**:
+  - Create: `hubspotDeal({ operation: "create", dealname: "New Deal", pipeline: "default", dealstage: "appointmentscheduled", amount: "50000" })`
+  - Get: `hubspotDeal({ operation: "get", id: "123456" })`
+  - Search: `hubspotDeal({ operation: "search", searchType: "name", query: "Acme" })`
+
+### hubspotNote
+- **Operations**: create, get, update, delete, list, recent
+- **Examples**:
+  - Create: `hubspotNote({ operation: "create", content: "Meeting notes from call with client" })`
+  - Get: `hubspotNote({ operation: "get", id: "123456" })`
+  - List: `hubspotNote({ operation: "list", limit: 10 })`
+
+### hubspotAssociation
+- **Operations**: create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels, getAssociationTypes, getAssociationTypeReference
+- **Examples**:
+  - Create: `hubspotAssociation({ operation: "createDefault", fromObjectType: "contacts", fromObjectId: "123", toObjectType: "companies", toObjectId: "456" })`
+  - List: `hubspotAssociation({ operation: "list", objectType: "contacts", objectId: "123", toObjectType: "companies" })`
+
 ### hubspotBlogPost
-- **Operations**: create, get, update, delete, search, recent, publish, schedule
+- **Operations**: create, get, update, delete, recent
 - **Examples**:
   - Create: `hubspotBlogPost({ operation: "create", name: "My Blog Post", contentGroupId: "12345", postBody: "<p>Content here</p>" })`
   - Get: `hubspotBlogPost({ operation: "get", id: "123456" })`
-  - Publish: `hubspotBlogPost({ operation: "publish", id: "123456" })`
-  - Schedule: `hubspotBlogPost({ operation: "schedule", id: "123456", publishDate: "2025-05-01T10:00:00Z" })`
+  - Update: `hubspotBlogPost({ operation: "update", id: "123456", name: "Updated Title" })`
 
 ### hubspotQuote
 - **Operations**: create, get, update, delete, search, recent, addLineItem, listLineItems, updateLineItem, removeLineItem
@@ -44,6 +63,16 @@ A Model Context Protocol server for HubSpot integration using the Bounded Contex
   - List line items: `hubspotQuote({ operation: "listLineItems", quoteId: "123456" })`
   - Update line item: `hubspotQuote({ operation: "updateLineItem", lineItemId: "789", quantity: 3, discount: 10 })`
   - Remove line item: `hubspotQuote({ operation: "removeLineItem", quoteId: "123456", lineItemId: "789" })`
+
+### hubspotSocialMedia
+- **Operations**: getBroadcastMessages, getBroadcastMessage, createBroadcastMessage, updateBroadcastMessage, deleteBroadcastMessage, getChannels
+- **Examples**:
+  - Get messages: `hubspotSocialMedia({ operation: "getBroadcastMessages", status: "PUBLISHED", limit: 20 })`
+  - Get message: `hubspotSocialMedia({ operation: "getBroadcastMessage", broadcastGuid: "abc123" })`
+  - Create message: `hubspotSocialMedia({ operation: "createBroadcastMessage", body: "Check out our new product!", channelKeys: ["channel-guid"] })`
+  - Update message: `hubspotSocialMedia({ operation: "updateBroadcastMessage", broadcastGuid: "abc123", body: "Updated message" })`
+  - Delete message: `hubspotSocialMedia({ operation: "deleteBroadcastMessage", broadcastGuid: "abc123" })`
+  - Get channels: `hubspotSocialMedia({ operation: "getChannels", limit: 10 })`
 
 ## Setup
 
@@ -87,38 +116,30 @@ Add this to your Claude Desktop config:
 
 ```
 src/
-  ├── core/             # Core server and shared types
-  │   ├── types.ts      # Type definitions
-  │   ├── hubspot-client.ts # HubSpot API client
-  │   └── server.ts     # MCP server implementation
-  ├── bcps/             # Bounded Context Packs
-  │   ├── Companies/    # Companies BCP
-  │   │   ├── create.tool.ts
-  │   │   ├── get.tool.ts
-  │   │   ├── update.tool.ts
-  │   │   ├── delete.tool.ts
-  │   │   ├── search.tool.ts
-  │   │   ├── recent.tool.ts
-  │   │   └── index.ts  # BCP definition
-  │   ├── Contacts/     # Contacts BCP
-  │   │   ├── create.tool.ts
-  │   │   ├── get.tool.ts
-  │   │   ├── update.tool.ts
-  │   │   ├── delete.tool.ts
-  │   │   ├── search.tool.ts
-  │   │   ├── recent.tool.ts
-  │   │   └── index.ts  # BCP definition
-  │   └── BlogPosts/    # BlogPosts BCP
-  │       ├── create.tool.ts
-  │       ├── get.tool.ts
-  │       ├── update.tool.ts
-  │       ├── delete.tool.ts
-  │       ├── search.tool.ts
-  │       ├── recent.tool.ts
-  │       ├── publish.tool.ts
-  │       ├── schedule.tool.ts
-  │       └── index.ts  # BCP definition
-  └── index.ts          # Entry point
+  ├── core/                # Core server and shared types
+  │   ├── types.ts         # Type definitions
+  │   ├── base-service.ts  # Base service class
+  │   ├── hubspot-client.ts# HubSpot API client
+  │   └── server.ts        # MCP server implementation
+  ├── bcps/                # Bounded Context Packs
+  │   ├── Companies/       # Companies BCP
+  │   ├── Contacts/        # Contacts BCP
+  │   ├── Deals/           # Deals BCP
+  │   ├── Notes/           # Notes BCP
+  │   ├── Associations/    # Associations BCP
+  │   ├── BlogPosts/       # BlogPosts BCP
+  │   ├── Quotes/          # Quotes BCP
+  │   └── SocialMedia/     # Social Media BCP
+  │       ├── types.ts
+  │       ├── socialmedia.service.ts
+  │       ├── get-broadcast-messages.tool.ts
+  │       ├── get-broadcast-message.tool.ts
+  │       ├── create-broadcast-message.tool.ts
+  │       ├── update-broadcast-message.tool.ts
+  │       ├── delete-broadcast-message.tool.ts
+  │       ├── get-channels.tool.ts
+  │       └── index.ts
+  └── index.ts             # Entry point
 ```
 
 ## BCP Architecture

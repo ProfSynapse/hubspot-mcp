@@ -11,7 +11,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { noteTools } from '../bcps/Notes/index.js';
 import { associationTools } from '../bcps/Associations/index.js';
-// import { ownersBcp } from '../bcps/Owners/index.js'; // Disabled - API not working properly
 import { ToolDefinition, validateParams } from './types.js'; // Ensure ToolDefinition and validateParams are imported
 
 /**
@@ -68,8 +67,8 @@ export class HubspotBCPServer {
     // Register Deals tools
     this.registerDealsTools();
     
-    // Register Owners tools - DISABLED (API not working properly)
-    // this.registerOwnersTools();
+    // Register SocialMedia tools
+    this.registerSocialMediaTools();
   }
   
   /**
@@ -77,7 +76,7 @@ export class HubspotBCPServer {
    */
   private getAvailableBCPs(): string[] {
     // Return the list of available BCPs
-    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes'];
+    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes', 'SocialMedia'];
   }
   
   /**
@@ -1029,15 +1028,100 @@ export class HubspotBCPServer {
   }
 
   /**
-   * Register Owners tools - DISABLED
-   * The owners API endpoints are not working properly with the current HubSpot setup.
-   * Keeping this method commented out for future reference.
+   * Register SocialMedia tools
    */
-  /*
-  private registerOwnersTools(): void {
-    // Implementation disabled - owners API not working properly
+  private registerSocialMediaTools(): void {
+    // Register the main SocialMedia tool
+    this.server.tool(
+      'hubspotSocialMedia',
+      {
+        operation: z.enum(['getBroadcastMessages', 'getBroadcastMessage', 'createBroadcastMessage', 'updateBroadcastMessage', 'deleteBroadcastMessage', 'getChannels']).describe('Operation to perform'),
+        
+        // Parameters for getBroadcastMessages
+        status: z.enum(['SCHEDULED', 'PUBLISHED', 'FAILED', 'DRAFT']).optional().describe('Filter by broadcast message status'),
+        since: z.number().optional().describe('Filter messages created since this timestamp (Unix timestamp in milliseconds)'),
+        until: z.number().optional().describe('Filter messages created until this timestamp (Unix timestamp in milliseconds)'),
+        
+        // Parameters for get/update/delete operations
+        broadcastGuid: z.string().optional().describe('The GUID of the broadcast message (required for get, update, delete operations)'),
+        
+        // Parameters for create/update operations
+        body: z.string().optional().describe('The content of the social media post'),
+        channelKeys: z.array(z.string()).optional().describe('Array of channel GUIDs to post to'),
+        groupGuid: z.string().optional().describe('Group GUID to associate the message with'),
+        publishNow: z.boolean().optional().describe('Whether to publish the message immediately'),
+        publishAt: z.number().optional().describe('Unix timestamp (milliseconds) to schedule the message for publishing'),
+        
+        // Common parameters
+        limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
+        offset: z.number().optional().describe('Number of results to skip for pagination')
+      },
+      async (params) => {
+        try {
+          const { operation } = params;
+          
+          // Import the BCP
+          const { bcp } = await import('../bcps/SocialMedia/index.js');
+          
+          // Find the appropriate tool based on operation
+          let toolName;
+          switch (operation) {
+            case 'getBroadcastMessages':
+              toolName = 'getBroadcastMessages';
+              break;
+            case 'getBroadcastMessage':
+              toolName = 'getBroadcastMessage';
+              if (!params.broadcastGuid) {
+                throw new Error('Broadcast GUID is required for getBroadcastMessage operation');
+              }
+              break;
+            case 'createBroadcastMessage':
+              toolName = 'createBroadcastMessage';
+              if (!params.body) {
+                throw new Error('Message body is required for createBroadcastMessage operation');
+              }
+              break;
+            case 'updateBroadcastMessage':
+              toolName = 'updateBroadcastMessage';
+              if (!params.broadcastGuid) {
+                throw new Error('Broadcast GUID is required for updateBroadcastMessage operation');
+              }
+              break;
+            case 'deleteBroadcastMessage':
+              toolName = 'deleteBroadcastMessage';
+              if (!params.broadcastGuid) {
+                throw new Error('Broadcast GUID is required for deleteBroadcastMessage operation');
+              }
+              break;
+            case 'getChannels':
+              toolName = 'getChannels';
+              break;
+            default:
+              throw new Error(`Unknown operation: ${operation}`);
+          }
+          
+          // Find the tool
+          const tool = bcp.tools.find(t => t.name === toolName);
+          if (!tool || !tool.handler) {
+            throw new Error(`Tool handler not found for operation: ${operation}`);
+          }
+          
+          // Execute the tool handler
+          const result = await tool.handler(params);
+          
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+        } catch (error) {
+          return {
+            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            isError: true
+          };
+        }
+      }
+    );
   }
-  */
+
 
   /**
    * Start the server
@@ -1058,6 +1142,7 @@ export class HubspotBCPServer {
       console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent)');
       console.error('- hubspotAssociation: Association operations (create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels)');
       console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent)');
+      console.error('- hubspotSocialMedia: Social Media operations (getBroadcastMessages, getBroadcastMessage, createBroadcastMessage, updateBroadcastMessage, deleteBroadcastMessage, getChannels)');
     } catch (error) {
       console.error('Failed to start server:', error);
       throw error;
