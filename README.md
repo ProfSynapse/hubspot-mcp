@@ -1,13 +1,17 @@
 # HubSpot BCP Server
 
-A Model Context Protocol server for HubSpot integration using the Bounded Context Packs pattern.
+A comprehensive Model Context Protocol server for HubSpot integration using the Bounded Context Packs pattern. This server provides complete access to HubSpot's CRM functionality including advanced features like quote management with line items and product integration.
 
-## Features
+## ✨ Features
 
-- **BCP Architecture**: Tools are organized into Bounded Context Packs
-- **Simplified Integration**: Single tool per domain with operation parameter
-- **Type Safety**: Full TypeScript support with comprehensive types
-- **Error Handling**: Consistent error handling across all operations
+- **🏗️ BCP Architecture**: Tools are organized into Bounded Context Packs for modular, maintainable code
+- **🔧 Simplified Integration**: Single tool per domain with operation parameter for easy use
+- **🛡️ Type Safety**: Full TypeScript support with comprehensive types and validation
+- **🚨 Error Handling**: Consistent error handling across all operations with detailed debugging
+- **💰 Quote Management**: Complete quote lifecycle management with line items support
+- **📦 Product Integration**: Full product catalog integration with line item associations
+- **🔗 Advanced Associations**: Comprehensive CRM object association management using HubSpot's v4 API
+- **⚡ Performance Optimized**: Built with modern Node.js and optimized API calls
 
 ## Available Tools
 
@@ -52,27 +56,34 @@ A Model Context Protocol server for HubSpot integration using the Bounded Contex
   - Get: `hubspotBlogPost({ operation: "get", id: "123456" })`
   - Update: `hubspotBlogPost({ operation: "update", id: "123456", name: "Updated Title" })`
 
-### hubspotQuote
+### hubspotQuote ⭐ **Fully Featured**
 - **Operations**: create, get, update, delete, search, recent, addLineItem, listLineItems, updateLineItem, removeLineItem
+- **✨ Advanced Features**: 
+  - Complete quote lifecycle management
+  - Line item associations with automatic total calculation
+  - Product catalog integration
+  - Multi-currency support
+  - E-signature and payment collection options
 - **Examples**:
-  - Create: `hubspotQuote({ operation: "create", title: "Q-2024-001", expirationDate: "2024-12-31", status: "DRAFT" })`
-  - Get: `hubspotQuote({ operation: "get", id: "123456" })`
+  - Create quote: `hubspotQuote({ operation: "create", title: "Q-2025-001", expirationDate: "2025-12-31", status: "DRAFT", currency: "USD", language: "en" })`
+  - Get quote: `hubspotQuote({ operation: "get", id: "123456" })`
   - Search by status: `hubspotQuote({ operation: "search", searchType: "status", searchTerm: "DRAFT" })`
-  - Update: `hubspotQuote({ operation: "update", id: "123456", status: "PENDING_APPROVAL" })`
-  - Add line item: `hubspotQuote({ operation: "addLineItem", quoteId: "123456", name: "Product A", quantity: 2, price: 99.99 })`
-  - List line items: `hubspotQuote({ operation: "listLineItems", quoteId: "123456" })`
-  - Update line item: `hubspotQuote({ operation: "updateLineItem", lineItemId: "789", quantity: 3, discount: 10 })`
-  - Remove line item: `hubspotQuote({ operation: "removeLineItem", quoteId: "123456", lineItemId: "789" })`
+  - Update quote: `hubspotQuote({ operation: "update", id: "123456", status: "PENDING_APPROVAL" })`
+  - **Line Item Management**:
+    - Add with product: `hubspotQuote({ operation: "addLineItem", quoteId: "123456", name: "Laptop", quantity: 2, price: 999.99, productId: "12345", description: "MacBook Pro" })`
+    - Add custom item: `hubspotQuote({ operation: "addLineItem", quoteId: "123456", name: "Consulting", quantity: 10, price: 150.00, description: "Technical consulting hours" })`
+    - List all items: `hubspotQuote({ operation: "listLineItems", quoteId: "123456" })`
+    - Update item: `hubspotQuote({ operation: "updateLineItem", lineItemId: "789", quantity: 3, price: 899.99, discount: 100 })`
+    - Remove item: `hubspotQuote({ operation: "removeLineItem", quoteId: "123456", lineItemId: "789" })`
 
-### hubspotSocialMedia
-- **Operations**: getBroadcastMessages, getBroadcastMessage, createBroadcastMessage, updateBroadcastMessage, deleteBroadcastMessage, getChannels
+### hubspotProduct 🆕 **New Feature**
+- **Operations**: list, search, get
+- **Features**: Complete product catalog access for line item integration
 - **Examples**:
-  - Get messages: `hubspotSocialMedia({ operation: "getBroadcastMessages", status: "PUBLISHED", limit: 20 })`
-  - Get message: `hubspotSocialMedia({ operation: "getBroadcastMessage", broadcastGuid: "abc123" })`
-  - Create message: `hubspotSocialMedia({ operation: "createBroadcastMessage", body: "Check out our new product!", channelKeys: ["channel-guid"] })`
-  - Update message: `hubspotSocialMedia({ operation: "updateBroadcastMessage", broadcastGuid: "abc123", body: "Updated message" })`
-  - Delete message: `hubspotSocialMedia({ operation: "deleteBroadcastMessage", broadcastGuid: "abc123" })`
-  - Get channels: `hubspotSocialMedia({ operation: "getChannels", limit: 10 })`
+  - List products: `hubspotProduct({ operation: "list", limit: 20 })`
+  - Search products: `hubspotProduct({ operation: "search", name: "laptop" })`
+  - Get product details: `hubspotProduct({ operation: "get", id: "12345" })`
+
 
 ## Setup
 
@@ -129,16 +140,6 @@ src/
   │   ├── Associations/    # Associations BCP
   │   ├── BlogPosts/       # BlogPosts BCP
   │   ├── Quotes/          # Quotes BCP
-  │   └── SocialMedia/     # Social Media BCP
-  │       ├── types.ts
-  │       ├── socialmedia.service.ts
-  │       ├── get-broadcast-messages.tool.ts
-  │       ├── get-broadcast-message.tool.ts
-  │       ├── create-broadcast-message.tool.ts
-  │       ├── update-broadcast-message.tool.ts
-  │       ├── delete-broadcast-message.tool.ts
-  │       ├── get-channels.tool.ts
-  │       └── index.ts
   └── index.ts             # Entry point
 ```
 

@@ -60,7 +60,7 @@ const inputSchema: InputSchema = {
     },
     expirationDate: {
       type: 'string',
-      description: 'Quote expiration date (ISO 8601 format)'
+      description: 'Quote expiration date (YYYY-MM-DD format, e.g., 2025-07-12)'
     },
     status: {
       type: 'string',
@@ -74,7 +74,7 @@ const inputSchema: InputSchema = {
     },
     language: {
       type: 'string',
-      description: 'Language code (e.g., en, es, fr)'
+      description: 'Language code (e.g., en, es, fr) - defaults to "en" if not specified'
     },
     locale: {
       type: 'string',
@@ -186,10 +186,14 @@ export const tool: ToolDefinition = {
       // Prepare quote properties
       const properties: QuotePropertiesInput = {
         hs_title: params.title,
-        ...(params.expirationDate && { hs_expiration_date: params.expirationDate }),
+        hs_language: params.language || 'en', // Default to English if not specified
+        ...(params.expirationDate && { 
+          hs_expiration_date: params.expirationDate.includes('T') 
+            ? params.expirationDate.split('T')[0] // Extract date part if datetime provided
+            : params.expirationDate 
+        }),
         ...(params.status && { hs_status: params.status }),
         ...(params.currency && { hs_currency: params.currency }),
-        ...(params.language && { hs_language: params.language }),
         ...(params.locale && { hs_locale: params.locale }),
         ...(params.senderCompanyName && { hs_sender_company_name: params.senderCompanyName }),
         ...(params.senderCompanyAddress && { hs_sender_company_address: params.senderCompanyAddress }),

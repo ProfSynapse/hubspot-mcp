@@ -36,7 +36,7 @@ const inputSchema: InputSchema = {
     },
     productId: {
       type: 'string',
-      description: 'Product ID from HubSpot product library (optional)'
+      description: 'Product ID from HubSpot product library (optional). To get product IDs, use hubspotProduct operation "list" or "search".'
     },
     quantity: {
       type: 'number',

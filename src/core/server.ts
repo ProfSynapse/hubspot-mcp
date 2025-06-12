@@ -67,8 +67,9 @@ export class HubspotBCPServer {
     // Register Deals tools
     this.registerDealsTools();
     
-    // Register SocialMedia tools
-    this.registerSocialMediaTools();
+    // Register Products tools
+    this.registerProductsTools();
+    
   }
   
   /**
@@ -76,7 +77,7 @@ export class HubspotBCPServer {
    */
   private getAvailableBCPs(): string[] {
     // Return the list of available BCPs
-    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes', 'SocialMedia'];
+    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes', 'Products'];
   }
   
   /**
@@ -1028,80 +1029,61 @@ export class HubspotBCPServer {
   }
 
   /**
-   * Register SocialMedia tools
+   * Register Products tools
    */
-  private registerSocialMediaTools(): void {
-    // Register the main SocialMedia tool
+  private registerProductsTools(): void {
+    // Register the main Products tool
     this.server.tool(
-      'hubspotSocialMedia',
+      'hubspotProduct',
       {
-        operation: z.enum(['getBroadcastMessages', 'getBroadcastMessage', 'createBroadcastMessage', 'updateBroadcastMessage', 'deleteBroadcastMessage', 'getChannels']).describe('Operation to perform'),
+        operation: z.enum(['list', 'search', 'get']).describe('Operation to perform'),
         
-        // Parameters for getBroadcastMessages
-        status: z.enum(['SCHEDULED', 'PUBLISHED', 'FAILED', 'DRAFT']).optional().describe('Filter by broadcast message status'),
-        since: z.number().optional().describe('Filter messages created since this timestamp (Unix timestamp in milliseconds)'),
-        until: z.number().optional().describe('Filter messages created until this timestamp (Unix timestamp in milliseconds)'),
+        // Parameters for get operation
+        id: z.string().optional().describe('Product ID (required for get operation)'),
         
-        // Parameters for get/update/delete operations
-        broadcastGuid: z.string().optional().describe('The GUID of the broadcast message (required for get, update, delete operations)'),
-        
-        // Parameters for create/update operations
-        body: z.string().optional().describe('The content of the social media post'),
-        channelKeys: z.array(z.string()).optional().describe('Array of channel GUIDs to post to'),
-        groupGuid: z.string().optional().describe('Group GUID to associate the message with'),
-        publishNow: z.boolean().optional().describe('Whether to publish the message immediately'),
-        publishAt: z.number().optional().describe('Unix timestamp (milliseconds) to schedule the message for publishing'),
+        // Parameters for search operation
+        name: z.string().optional().describe('Product name to search for (required for search operation)'),
         
         // Common parameters
-        limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
-        offset: z.number().optional().describe('Number of results to skip for pagination')
+        limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of results (for list operation)')
       },
       async (params) => {
         try {
           const { operation } = params;
           
-          // Import the BCP
-          const { bcp } = await import('../bcps/SocialMedia/index.js');
+          // Validate operation-specific parameters
+          switch (operation) {
+            case 'get':
+              if (!params.id) {
+                throw new Error('Product ID is required for get operation');
+              }
+              break;
+            case 'search':
+              if (!params.name) {
+                throw new Error('Product name is required for search operation');
+              }
+              break;
+          }
+          
+          // Dispatch to the appropriate operation using the Products BCP
+          const { productTools } = await import('../bcps/Products/index.js');
           
           // Find the appropriate tool based on operation
-          let toolName;
+          let tool;
           switch (operation) {
-            case 'getBroadcastMessages':
-              toolName = 'getBroadcastMessages';
+            case 'list':
+              tool = productTools.list;
               break;
-            case 'getBroadcastMessage':
-              toolName = 'getBroadcastMessage';
-              if (!params.broadcastGuid) {
-                throw new Error('Broadcast GUID is required for getBroadcastMessage operation');
-              }
+            case 'search':
+              tool = productTools.search;
               break;
-            case 'createBroadcastMessage':
-              toolName = 'createBroadcastMessage';
-              if (!params.body) {
-                throw new Error('Message body is required for createBroadcastMessage operation');
-              }
-              break;
-            case 'updateBroadcastMessage':
-              toolName = 'updateBroadcastMessage';
-              if (!params.broadcastGuid) {
-                throw new Error('Broadcast GUID is required for updateBroadcastMessage operation');
-              }
-              break;
-            case 'deleteBroadcastMessage':
-              toolName = 'deleteBroadcastMessage';
-              if (!params.broadcastGuid) {
-                throw new Error('Broadcast GUID is required for deleteBroadcastMessage operation');
-              }
-              break;
-            case 'getChannels':
-              toolName = 'getChannels';
+            case 'get':
+              tool = productTools.get;
               break;
             default:
               throw new Error(`Unknown operation: ${operation}`);
           }
           
-          // Find the tool
-          const tool = bcp.tools.find(t => t.name === toolName);
           if (!tool || !tool.handler) {
             throw new Error(`Tool handler not found for operation: ${operation}`);
           }
@@ -1122,7 +1104,6 @@ export class HubspotBCPServer {
     );
   }
 
-
   /**
    * Start the server
    */
@@ -1142,7 +1123,6 @@ export class HubspotBCPServer {
       console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent)');
       console.error('- hubspotAssociation: Association operations (create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels)');
       console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent)');
-      console.error('- hubspotSocialMedia: Social Media operations (getBroadcastMessages, getBroadcastMessage, createBroadcastMessage, updateBroadcastMessage, deleteBroadcastMessage, getChannels)');
     } catch (error) {
       console.error('Failed to start server:', error);
       throw error;

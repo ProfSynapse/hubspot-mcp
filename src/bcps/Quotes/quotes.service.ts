@@ -101,6 +101,7 @@ export class QuotesService extends HubspotBaseService {
     try {
       const apiProperties: { [key: string]: string } = {
         hs_title: properties.hs_title,
+        hs_language: properties.hs_language || 'en', // Default to English if not specified
         ...(properties.hs_expiration_date && { hs_expiration_date: properties.hs_expiration_date }),
         ...(properties.hs_status && { hs_status: properties.hs_status }),
         ...(properties.hs_currency && { hs_currency: properties.hs_currency })
@@ -296,44 +297,73 @@ export class QuotesService extends HubspotBaseService {
     this.validateRequired(lineItem, ['name']);
 
     try {
-      // Create the line item
+      // Create the line item with required properties
       const apiProperties: { [key: string]: string } = {
         name: lineItem.name,
         quantity: lineItem.quantity || '1',
-        price: lineItem.price || '0',
-        ...(lineItem.hs_product_id && { hs_product_id: lineItem.hs_product_id }),
-        ...(lineItem.discount && { discount: lineItem.discount }),
-        ...(lineItem.hs_discount_percentage && { hs_discount_percentage: lineItem.hs_discount_percentage }),
-        ...(lineItem.hs_term_in_months && { hs_term_in_months: lineItem.hs_term_in_months }),
-        ...(lineItem.hs_recurring_billing_period && { hs_recurring_billing_period: lineItem.hs_recurring_billing_period }),
-        ...(lineItem.description && { description: lineItem.description })
+        price: lineItem.price || '0'
       };
 
+      // Add optional properties if they exist
+      if (lineItem.hs_product_id) apiProperties.hs_product_id = lineItem.hs_product_id;
+      if (lineItem.discount) apiProperties.discount = lineItem.discount;
+      if (lineItem.hs_discount_percentage) apiProperties.hs_discount_percentage = lineItem.hs_discount_percentage;
+      if (lineItem.hs_term_in_months) apiProperties.hs_term_in_months = lineItem.hs_term_in_months;
+      if (lineItem.hs_recurring_billing_period) apiProperties.hs_recurring_billing_period = lineItem.hs_recurring_billing_period;
+      if (lineItem.description) apiProperties.description = lineItem.description;
+
+      // Create the line item first
       const lineItemResponse = await this.client.crm.lineItems.basicApi.create({
         properties: apiProperties,
         associations: []
       });
 
-      // Associate the line item with the quote using the correct association type
-      const associationTypeId = getAssociationTypeId('line_items', 'quotes', 'line_item_to_quote');
-      if (!associationTypeId) {
-        throw new Error('Could not find association type ID for line_items -> quotes');
+      // Use the correct v4 API for creating associations - FROM quote TO line_item
+      try {
+        // Try the v4 API default association endpoint (quotes -> line_items direction)
+        const apiUrl = `https://api.hubapi.com/crm/v4/associations/quotes/line_items/batch/associate/default`;
+        const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            inputs: [{
+              from: { id: quoteId },
+              to: { id: lineItemResponse.id }
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`v4 Association API Error ${response.status}: ${errorText}`);
+        }
+
+        const associationResult = await response.json();
+        
+        // Check if the association was actually created
+        if (!associationResult || !associationResult.results || associationResult.results.length === 0) {
+          throw new Error(`v4 Association API returned empty results: ${JSON.stringify(associationResult)}`);
+        }
+        
+        // Check for errors in the response
+        if (associationResult.numErrors && associationResult.numErrors > 0) {
+          const firstError = associationResult.errors && associationResult.errors[0];
+          throw new Error(`v4 Association API returned errors: ${firstError ? firstError.message : JSON.stringify(associationResult.errors)}`);
+        }
+      } catch (associationError) {
+        throw new Error(`Failed to create v4 association: ${associationError instanceof Error ? associationError.message : String(associationError)}`);
       }
 
       try {
-        console.log(`Attempting to associate line item ${lineItemResponse.id} with quote ${quoteId} using association type ${associationTypeId}`);
+        // Wait a moment for the association to propagate
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const associationResponse = await this.client.crm.associations.batchApi.create('line_items', 'quotes', {
-          inputs: [{
-            _from: { id: lineItemResponse.id },
-            to: { id: quoteId },
-            type: associationTypeId.toString()
-          }]
-        });
-        
-        console.log('Association response:', JSON.stringify(associationResponse, null, 2));
-        
-        // Verify the association was created by checking the quote's associations
+        // Verify the association was created by checking if we can find the line item in the quote's associations
         const verifyQuote = await this.client.crm.quotes.basicApi.getById(
           quoteId,
           undefined,
@@ -341,10 +371,23 @@ export class QuotesService extends HubspotBaseService {
           ['line_items']
         );
         
-        console.log('Quote associations after adding line item:', JSON.stringify(verifyQuote.associations, null, 2));
+        // Check both possible key formats for line items associations
+        const lineItemsAssociation = verifyQuote.associations?.['line_items'] || verifyQuote.associations?.['line items'];
+        const isAssociated = lineItemsAssociation?.results?.some(
+          assoc => assoc.id === lineItemResponse.id
+        );
+        
+        if (!isAssociated) {
+          const debugInfo = {
+            lineItemId: lineItemResponse.id,
+            quoteAssociations: verifyQuote.associations || 'null',
+            foundLineItems_underscore: verifyQuote.associations?.['line_items']?.results?.map(a => a.id) || [],
+            foundLineItems_space: verifyQuote.associations?.['line items']?.results?.map(a => a.id) || []
+          };
+          throw new Error(`Line item was not properly associated with the quote. Debug: ${JSON.stringify(debugInfo)}`);
+        }
         
       } catch (associationError) {
-        console.error('Association error:', associationError);
         // If association fails, clean up the created line item
         try {
           await this.client.crm.lineItems.basicApi.archive(lineItemResponse.id);
@@ -361,6 +404,13 @@ export class QuotesService extends HubspotBaseService {
         updatedAt: new Date(lineItemResponse.updatedAt).toISOString()
       };
     } catch (error) {
+      // Check if this is a product ID validation error and provide helpful guidance
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('Associated product id') && errorMessage.includes('does not exist')) {
+        const productIdMatch = errorMessage.match(/Associated product id '(\d+)' does not exist/);
+        const productId = productIdMatch ? productIdMatch[1] : 'provided';
+        throw this.handleApiError(error, `Failed to add line item to quote: Product ID ${productId} does not exist in your HubSpot product library. Use hubspotProduct operation "list" or "search" to find valid product IDs, or omit the productId to create a custom line item.`);
+      }
       throw this.handleApiError(error, 'Failed to add line item to quote');
     }
   }
@@ -380,16 +430,15 @@ export class QuotesService extends HubspotBaseService {
         ['line_items']
       );
 
-      console.log(`Getting line items for quote ${quoteId}`);
-      console.log('Quote associations:', JSON.stringify(quote.associations, null, 2));
-
-      if (!quote.associations?.['line_items']) {
-        console.log('No line_items associations found on quote');
+      // Check both possible key formats for line items associations
+      const lineItemsAssociation = quote.associations?.['line_items'] || quote.associations?.['line items'];
+      
+      if (!lineItemsAssociation) {
         return [];
       }
 
       // Get all line item IDs
-      const lineItemIds = quote.associations['line_items'].results.map(assoc => assoc.id);
+      const lineItemIds = lineItemsAssociation.results.map(assoc => assoc.id);
 
       if (lineItemIds.length === 0) {
         return [];
@@ -449,19 +498,36 @@ export class QuotesService extends HubspotBaseService {
     this.checkInitialized();
 
     try {
-      // Remove association between line item and quote using the correct association type
-      const associationTypeId = getAssociationTypeId('line_items', 'quotes', 'line_item_to_quote');
-      if (!associationTypeId) {
-        throw new Error('Could not find association type ID for line_items -> quotes');
+      // First, verify the line item exists and is associated with the quote
+      const currentLineItems = await this.getQuoteLineItems(quoteId);
+      const lineItemExists = currentLineItems.some(item => item.id === lineItemId);
+      
+      if (!lineItemExists) {
+        throw new Error(`Line item ${lineItemId} is not associated with quote ${quoteId} or does not exist`);
       }
 
-      await this.client.crm.associations.batchApi.archive('line_items', 'quotes', {
-        inputs: [{
-          _from: { id: lineItemId },
-          to: { id: quoteId },
-          type: associationTypeId.toString()
-        }]
+      // Remove association using the correct v4 API archive endpoint
+      const apiUrl = `https://api.hubapi.com/crm/v4/associations/quotes/line_items/batch/archive`;
+      const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: [{
+            from: { id: quoteId },
+            to: [{ id: lineItemId }]
+          }]
+        })
       });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to remove association: ${response.status}: ${errorText}`);
+      }
 
       // Delete the line item
       await this.client.crm.lineItems.basicApi.archive(lineItemId);
