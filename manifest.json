@@ -1,5 +1,5 @@
 {
-  "dxt_version": "1.0",
+  "dxt_version": "0.1",
   "name": "hubspot-mcp",
   "version": "0.1.0",
   "display_name": "HubSpot MCP Extension",
@@ -29,9 +29,8 @@
     "mcp_config": {
       "command": "node",
       "args": ["build/index.js"],
-      "transport": "stdio",
       "env": {
-        "hubspot_access_token": "${user_config.hubspot_access_token}"
+        "HUBSPOT_ACCESS_TOKEN": "${user_config.hubspot_access_token}"
       }
     }
   },
@@ -81,9 +80,5 @@
   "compatibility": {
     "claude_desktop": ">=1.5.0",
     "node": ">=18.0.0"
-  },
-  "permissions": {
-    "files": ["read"],
-    "network": true
   }
 }
