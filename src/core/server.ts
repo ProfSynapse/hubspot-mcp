@@ -24,6 +24,7 @@ export class HubspotBCPServer {
   private server: McpServer;
   private apiClient: HubspotApiClient;
   private propertyGroupsCache = new Map<string, string[]>();
+  private blogsCache = new Map<string, string>(); // blogId -> blogName
   
   /**
    * Create a new HubSpot BCP Server
@@ -67,9 +68,19 @@ export class HubspotBCPServer {
   }
 
   /**
-   * Fetch property groups for common object types at startup
+   * Fetch property groups and blogs at startup
    */
   private async fetchPropertyGroups(): Promise<void> {
+    await Promise.all([
+      this.fetchPropertyGroupsForObjects(),
+      this.fetchAvailableBlogs()
+    ]);
+  }
+
+  /**
+   * Fetch property groups for common object types at startup
+   */
+  private async fetchPropertyGroupsForObjects(): Promise<void> {
     const commonObjectTypes = ['contacts', 'companies', 'deals', 'tickets'];
     
     for (const objectType of commonObjectTypes) {
@@ -104,6 +115,37 @@ export class HubspotBCPServer {
   }
 
   /**
+   * Fetch available blogs at startup
+   */
+  private async fetchAvailableBlogs(): Promise<void> {
+    try {
+      console.error('[HUBSPOT-MCP] Fetching available blogs...');
+      
+      const accessToken = process.env.HUBSPOT_ACCESS_TOKEN;
+      if (!accessToken) {
+        console.error('[HUBSPOT-MCP] No access token available, skipping blog fetch');
+        return;
+      }
+      
+      // Use the API client to fetch blogs
+      const blogs = await this.apiClient.getBlogs(50, 0); // Get up to 50 blogs
+      
+      // Cache blog ID -> name mapping
+      blogs.forEach(blog => {
+        if (blog.id && blog.name) {
+          this.blogsCache.set(blog.id.toString(), blog.name);
+        }
+      });
+      
+      console.error(`[HUBSPOT-MCP] Cached ${blogs.length} blogs:`, Array.from(this.blogsCache.values()).slice(0, 3).join(', ') + (blogs.length > 3 ? '...' : ''));
+      
+    } catch (error) {
+      console.error('[HUBSPOT-MCP] Failed to fetch blogs:', (error as Error).message);
+      // Continue without cached blogs - users can still use list operation
+    }
+  }
+
+  /**
    * Get property groups for a specific object type from cache
    */
   private getPropertyGroups(objectType: string): string[] {
@@ -130,6 +172,22 @@ export class HubspotBCPServer {
     } else {
       console.error('[HUBSPOT-MCP] No cached groups found, using string schema for groupName');
       return z.string();
+    }
+  }
+
+  /**
+   * Create dynamic contentGroupId schema based on cached blogs
+   */
+  private createContentGroupIdSchema() {
+    const blogIds = Array.from(this.blogsCache.keys());
+    
+    // If we have cached blogs, create an enum with IDs, otherwise allow any string
+    if (blogIds.length > 0) {
+      console.error(`[HUBSPOT-MCP] Creating dynamic contentGroupId enum with ${blogIds.length} blog options`);
+      return z.enum(blogIds as [string, ...string[]]).describe(`Blog ID to publish to. Available blogs: ${Array.from(this.blogsCache.entries()).map(([id, name]) => `${id} (${name})`).join(', ')}`);
+    } else {
+      console.error('[HUBSPOT-MCP] No cached blogs found, using string schema for contentGroupId');
+      return z.string().describe('Blog ID to publish to (use list operation to see available blogs)');
     }
   }
 
@@ -671,7 +729,7 @@ export class HubspotBCPServer {
         
         // Parameters for create operation
         name: z.string().optional().describe('Blog post title (required for create operation)'),
-        contentGroupId: z.string().optional().describe('ID of the parent blog to publish the post to (required for create operation)'),
+        contentGroupId: this.createContentGroupIdSchema().optional(),
         slug: z.string().optional().describe('URL slug for the blog post'),
         blogAuthorId: z.string().optional().describe('ID of the blog author'),
         metaDescription: z.string().optional().describe('Meta description for the blog post'),
