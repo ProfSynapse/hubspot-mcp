@@ -1,0 +1,89 @@
+{
+  "dxt_version": "1.0",
+  "name": "hubspot-mcp",
+  "version": "0.1.0",
+  "display_name": "HubSpot MCP Extension",
+  "description": "HubSpot integration for managing CRM data through Model Context Protocol",
+  "long_description": "A comprehensive HubSpot integration extension that provides MCP tools for managing companies, contacts, deals, notes, blog posts, quotes, and products. Built with a Bounded Context Packs (BCP) architecture for modular and maintainable code organization.\n\n## Features\n- **Companies**: Create, read, update, delete, and search company records\n- **Contacts**: Manage contact information and associations\n- **Deals**: Handle sales pipeline and deal management\n- **Notes**: Create and manage notes with object associations\n- **Blog Posts**: Content management for HubSpot blog posts\n- **Quotes**: Quote generation and line item management\n- **Products**: Product catalog management\n- **Associations**: Manage relationships between different HubSpot objects\n\nThe extension follows HubSpot API best practices and includes comprehensive error handling and validation.",
+  "author": {
+    "name": "Professor Synapse",
+    "email": "prof@synapticlabs.ai"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ProfSynapse/hubspot-mcp"
+  },
+  "keywords": [
+    "hubspot",
+    "crm",
+    "mcp",
+    "sales",
+    "marketing",
+    "api",
+    "integration"
+  ],
+  "license": "MIT",
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["build/index.js"],
+      "transport": "stdio",
+      "env": {
+        "hubspot_access_token": "${user_config.hubspot_access_token}"
+      }
+    }
+  },
+  "user_config": {
+    "hubspot_access_token": {
+      "type": "string",
+      "title": "HubSpot Access Token",
+      "description": "HubSpot Private App Access Token (requires scopes for CRM objects, content, and associations)",
+      "required": true,
+      "sensitive": true
+    }
+  },
+  "tools": [
+    {
+      "name": "hubspotCompany",
+      "description": "Manage HubSpot company records with operations like create, get, update, delete, search, and recent"
+    },
+    {
+      "name": "hubspotContact",
+      "description": "Manage HubSpot contact records with operations like create, get, update, delete, search, and recent"
+    },
+    {
+      "name": "hubspotDeal",
+      "description": "Manage HubSpot deal records with operations like create, get, update, delete, search, recent, and batch operations"
+    },
+    {
+      "name": "hubspotNote",
+      "description": "Manage HubSpot notes with operations like create, get, update, delete, list, recent, and association management"
+    },
+    {
+      "name": "hubspotBlogPost",
+      "description": "Manage HubSpot blog posts with operations like create, get, update, delete, list, and recent"
+    },
+    {
+      "name": "hubspotQuote",
+      "description": "Manage HubSpot quotes with operations like create, get, update, delete, search, recent, and line item management"
+    },
+    {
+      "name": "hubspotProduct",
+      "description": "Manage HubSpot products with operations like get, list, and search"
+    },
+    {
+      "name": "hubspotAssociation",
+      "description": "Manage associations between HubSpot objects with operations for creating, reading, and deleting relationships"
+    }
+  ],
+  "compatibility": {
+    "claude_desktop": ">=1.5.0",
+    "node": ">=18.0.0"
+  },
+  "permissions": {
+    "files": ["read"],
+    "network": true
+  }
+}

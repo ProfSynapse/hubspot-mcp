@@ -1,14 +1,16 @@
 {
-  "name": "hubspot-bcp",
+  "name": "hubspot-mcp",
   "version": "0.1.0",
-  "description": "HubSpot MCP server using Bounded Context Packs pattern",
+  "description": "HubSpot Desktop Extension (DXT) for managing CRM data through Model Context Protocol",
   "type": "module",
   "main": "build/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
     "dev": "tsc -w",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "pack-dxt": "npm run build && npx @anthropic-ai/dxt pack",
+    "prepublish": "npm run build"
   },
   "dependencies": {
     "@hubspot/api-client": "^9.0.0",
@@ -23,5 +25,25 @@
     "jest-environment-node": "^29.7.0",
     "ts-jest": "^29.3.2",
     "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "hubspot",
+    "crm",
+    "mcp",
+    "dxt",
+    "desktop-extension",
+    "sales",
+    "marketing",
+    "api",
+    "integration"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/hubspot-mcp"
   }
 }

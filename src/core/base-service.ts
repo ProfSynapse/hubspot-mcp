@@ -30,6 +30,15 @@ export class HubspotBaseService implements BaseService {
    * Initialize the service and verify credentials
    */
   async init(): Promise<void> {
+    // Skip initialization if we don't have a real token
+    // This allows the DXT extension to start without a token
+    const token = this.config.hubspotAccessToken;
+    if (!token || token === 'placeholder') {
+      console.error('HubSpot service not initialized: No valid access token provided');
+      this.initialized = false;
+      return;
+    }
+    
     try {
       // Test API access by making a simple request
       await this.client.apiRequest({
@@ -67,9 +76,9 @@ export class HubspotBaseService implements BaseService {
   protected checkInitialized(): void {
     if (!this.initialized) {
       throw new BcpError(
-        'Service not initialized',
-        'SERVICE_ERROR',
-        500
+        'HubSpot service not initialized. Please configure your HubSpot access token in the extension settings.',
+        'AUTH_ERROR',
+        401
       );
     }
   }

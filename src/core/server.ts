@@ -11,6 +11,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 import { noteTools } from '../bcps/Notes/index.js';
 import { associationTools } from '../bcps/Associations/index.js';
+import { propertiesTools } from '../bcps/Properties/index.js';
+import { emailTools } from '../bcps/Emails/index.js';
 import { ToolDefinition, validateParams } from './types.js'; // Ensure ToolDefinition and validateParams are imported
 
 /**
@@ -21,6 +23,7 @@ import { ToolDefinition, validateParams } from './types.js'; // Ensure ToolDefin
 export class HubspotBCPServer {
   private server: McpServer;
   private apiClient: HubspotApiClient;
+  private propertyGroupsCache = new Map<string, string[]>();
   
   /**
    * Create a new HubSpot BCP Server
@@ -28,20 +31,108 @@ export class HubspotBCPServer {
    * @param apiKey - HubSpot API key
    */
   constructor(apiKey: string) {
+    console.error('[HUBSPOT-MCP] HubspotBCPServer constructor called');
+    
     // Create API client
+    console.error('[HUBSPOT-MCP] Creating HubSpot API client...');
     this.apiClient = createHubspotApiClient(apiKey);
+    console.error('[HUBSPOT-MCP] API client created');
     
     // Create MCP server
+    console.error('[HUBSPOT-MCP] Creating MCP server...');
     this.server = new McpServer({
-      name: 'hubspot-bcp-server',
-      version: '1.0.0',
-      description: 'HubSpot MCP Server with BCP Architecture'
+      name: 'hubspot-mcp',
+      version: '0.1.0',
+      description: 'HubSpot Desktop Extension (DXT) with BCP Architecture'
     });
+    console.error('[HUBSPOT-MCP] MCP server created');
     
-    // Register all tools
-    this.registerAllTools();
+    // Tools will be registered after initialization in init() method
+    console.error('[HUBSPOT-MCP] Constructor complete, tools will be registered after init');
   }
   
+  /**
+   * Initialize server by fetching property groups and registering tools
+   */
+  public async init(): Promise<void> {
+    console.error('[HUBSPOT-MCP] Starting server initialization...');
+    
+    // Try to fetch property groups for common object types
+    await this.fetchPropertyGroups();
+    
+    // Now register all tools with cached group information
+    console.error('[HUBSPOT-MCP] Registering all tools...');
+    this.registerAllTools();
+    console.error('[HUBSPOT-MCP] Tools registered, initialization complete');
+  }
+
+  /**
+   * Fetch property groups for common object types at startup
+   */
+  private async fetchPropertyGroups(): Promise<void> {
+    const commonObjectTypes = ['contacts', 'companies', 'deals', 'tickets'];
+    
+    for (const objectType of commonObjectTypes) {
+      try {
+        console.error(`[HUBSPOT-MCP] Fetching property groups for ${objectType}...`);
+        
+        // Create a temporary PropertiesService instance to fetch groups
+        const { PropertiesService } = await import('../bcps/Properties/properties.service.js');
+        const tempConfig = {
+          hubspotAccessToken: process.env.HUBSPOT_ACCESS_TOKEN || '',
+        };
+        
+        if (!tempConfig.hubspotAccessToken) {
+          console.error(`[HUBSPOT-MCP] No access token available, skipping group fetch`);
+          break;
+        }
+        
+        const service = new PropertiesService(tempConfig);
+        await service.init();
+        
+        const groups = await service.getPropertyGroups(objectType);
+        const groupNames = groups.map(g => g.name).filter(name => name && name.trim());
+        
+        this.propertyGroupsCache.set(objectType, groupNames);
+        console.error(`[HUBSPOT-MCP] Cached ${groupNames.length} groups for ${objectType}:`, groupNames.slice(0, 3).join(', ') + (groupNames.length > 3 ? '...' : ''));
+        
+      } catch (error) {
+        console.error(`[HUBSPOT-MCP] Failed to fetch property groups for ${objectType}:`, (error as Error).message);
+        // Continue with other object types, don't fail completely
+      }
+    }
+  }
+
+  /**
+   * Get property groups for a specific object type from cache
+   */
+  private getPropertyGroups(objectType: string): string[] {
+    return this.propertyGroupsCache.get(objectType) || [];
+  }
+
+  /**
+   * Create dynamic groupName schema based on cached property groups
+   */
+  private createGroupNameSchema() {
+    // Collect all unique group names across all object types
+    const allGroups = new Set<string>();
+    
+    for (const groups of this.propertyGroupsCache.values()) {
+      groups.forEach(group => allGroups.add(group));
+    }
+    
+    const groupArray = Array.from(allGroups);
+    
+    // If we have cached groups, create an enum, otherwise allow any string
+    if (groupArray.length > 0) {
+      console.error(`[HUBSPOT-MCP] Creating dynamic groupName enum with ${groupArray.length} options:`, groupArray.slice(0, 5).join(', ') + (groupArray.length > 5 ? '...' : ''));
+      return z.enum(groupArray as [string, ...string[]]);
+    } else {
+      console.error('[HUBSPOT-MCP] No cached groups found, using string schema for groupName');
+      return z.string();
+    }
+  }
+
   /**
    * Register all tools from all BCPs
    */
@@ -70,6 +161,12 @@ export class HubspotBCPServer {
     // Register Products tools
     this.registerProductsTools();
     
+    // Register Properties tools
+    this.registerPropertiesTools();
+    
+    // Register Emails tools
+    this.registerEmailsTools();
+    
   }
   
   /**
@@ -77,7 +174,7 @@ export class HubspotBCPServer {
    */
   private getAvailableBCPs(): string[] {
     // Return the list of available BCPs
-    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes', 'Products'];
+    return ['Companies', 'Contacts', 'Deals', 'Notes', 'Associations', 'Quotes', 'Products', 'Properties', 'Emails'];
   }
   
   /**
@@ -199,8 +296,10 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
             isError: true
           };
         }
@@ -330,8 +429,10 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
             isError: true
           };
         }
@@ -674,8 +775,10 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
             isError: true
           };
         }
@@ -871,8 +974,10 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
             isError: true
           };
         }
@@ -1019,8 +1124,10 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
             isError: true
           };
         }
@@ -1095,8 +1202,219 @@ export class HubspotBCPServer {
             content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
           };
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error(`DXT Error in operation:`, errorMessage);
           return {
-            content: [{ type: 'text', text: `Error: ${(error as Error).message}` }],
+            content: [{ type: 'text', text: `Error: ${errorMessage}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Register Properties tools
+   */
+  private registerPropertiesTools(): void {
+    // Define a combined schema for all property operations
+    const propertyOperationEnum = z.enum(['list', 'get', 'create', 'update', 'delete', 'listGroups', 'getGroup', 'createGroup', 'updateGroup', 'deleteGroup']);
+    
+    // Consolidate all properties from individual property tools' inputSchemas
+    const allPropertyParams = {
+      operation: propertyOperationEnum.describe('Operation to perform for properties'),
+      // Common parameters
+      objectType: z.string().optional().describe('The HubSpot object type (contacts, companies, deals, tickets, etc.)'),
+      // Parameters for property operations
+      propertyName: z.string().optional().describe('The name of the property (required for get, update, delete operations)'),
+      name: z.string().optional().describe('The internal name of the property (required for create operation)'),
+      label: z.string().optional().describe('The display label for the property'),
+      description: z.string().optional().describe('Description of the property'),
+      groupName: this.createGroupNameSchema().describe('Property group name (use listGroups operation to see available groups)'),
+
+      type: z.enum(['string', 'number', 'date', 'datetime', 'enumeration', 'bool']).optional().describe('The data type of the property'),
+      fieldType: z.enum(['text', 'textarea', 'select', 'radio', 'checkbox', 'date', 'file', 'number']).optional().describe('The form field type for the property'),
+      options: z.array(z.object({
+        label: z.string(),
+        value: z.string(),
+        displayOrder: z.number().optional(),
+        hidden: z.boolean().optional()
+      })).optional().describe('Array of options for enumeration type properties'),
+      formField: z.boolean().optional().describe('Whether the property should appear in forms'),
+      displayOrder: z.number().optional().describe('Display order for the property'),
+      hidden: z.boolean().optional().describe('Whether the property is hidden'),
+      hasUniqueValue: z.boolean().optional().describe('Whether the property values must be unique'),
+      calculationFormula: z.string().optional().describe('Formula for calculated properties'),
+      // Parameters for property group operations
+      displayName: z.string().optional().describe('The display name for the property group'),
+    };
+
+    this.server.tool(
+      'hubspotProperty',
+      allPropertyParams,
+      async (params: any) => {
+        try {
+          const { operation, ...operationParams } = params;
+          let selectedTool: ToolDefinition | undefined;
+
+          switch (operation) {
+            case 'list':
+              selectedTool = propertiesTools.find(t => t.name === 'listProperties');
+              break;
+            case 'get':
+              selectedTool = propertiesTools.find(t => t.name === 'getProperty');
+              break;
+            case 'create':
+              selectedTool = propertiesTools.find(t => t.name === 'createProperty');
+              break;
+            case 'update':
+              selectedTool = propertiesTools.find(t => t.name === 'updateProperty');
+              break;
+            case 'delete':
+              selectedTool = propertiesTools.find(t => t.name === 'deleteProperty');
+              break;
+            case 'listGroups':
+              selectedTool = propertiesTools.find(t => t.name === 'listPropertyGroups');
+              break;
+            case 'getGroup':
+              selectedTool = propertiesTools.find(t => t.name === 'getPropertyGroup');
+              break;
+            case 'createGroup':
+              selectedTool = propertiesTools.find(t => t.name === 'createPropertyGroup');
+              break;
+            case 'updateGroup':
+              selectedTool = propertiesTools.find(t => t.name === 'updatePropertyGroup');
+              break;
+            case 'deleteGroup':
+              selectedTool = propertiesTools.find(t => t.name === 'deletePropertyGroup');
+              break;
+            default:
+              throw new Error(`Unknown property operation: ${operation}`);
+          }
+
+          if (!selectedTool || !selectedTool.handler) {
+            throw new Error(`Handler not found for property operation: ${operation}`);
+          }
+          
+          // Validate parameters against the tool's inputSchema
+          if (selectedTool.inputSchema) {
+            try {
+              // This will throw an error if validation fails
+              validateParams(operationParams, selectedTool.inputSchema, selectedTool.name);
+            } catch (validationError) {
+              throw new Error(`Error performing property operation: ${(validationError as Error).message}`);
+            }
+          }
+          
+          const result = await selectedTool.handler(operationParams);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+
+        } catch (error) {
+          // Ensure error is an instance of Error
+          const err = error instanceof Error ? error : new Error(String(error));
+          return {
+            content: [{ type: 'text', text: `Error performing property operation: ${err.message}` }],
+            isError: true
+          };
+        }
+      }
+    );
+  }
+
+  /**
+   * Register Emails tools
+   */
+  private registerEmailsTools(): void {
+    // Define a combined schema for all email operations
+    const emailOperationEnum = z.enum(['create', 'get', 'update', 'delete', 'list', 'recent']);
+    
+    // Consolidate all properties from individual email tools' inputSchemas
+    const allEmailParams = {
+      operation: emailOperationEnum.describe('Operation to perform for emails'),
+      // Parameters for create operation
+      name: z.string().optional().describe('Internal name for the email (required for create)'),
+      templateId: z.string().optional().describe('ID of the template to use (required for create)'),
+      subject: z.string().optional().describe('Email subject line'),
+      from: z.object({
+        name: z.string().optional(),
+        email: z.string().email()
+      }).optional().describe('Sender information'),
+      replyTo: z.string().email().optional().describe('Reply-to email address'),
+      previewText: z.string().optional().describe('Preview text for email clients'),
+      folderId: z.string().optional().describe('Folder ID for organization'),
+      metadata: z.record(z.any()).optional().describe('Additional custom properties'),
+      // Parameters for get/update/delete operations
+      id: z.string().optional().describe('Email ID (required for get, update, delete)'),
+      // Parameters for update operation
+      state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED']).optional().describe('Email state'),
+      // Parameters for list operation
+      type: z.enum(['REGULAR', 'AUTOMATED', 'AB_TEST', 'FOLLOW_UP']).optional().describe('Filter by email type'),
+      campaignId: z.string().optional().describe('Filter by campaign ID'),
+      createdAfter: z.string().optional().describe('Filter emails created after this date (ISO 8601)'),
+      createdBefore: z.string().optional().describe('Filter emails created before this date (ISO 8601)'),
+      query: z.string().optional().describe('Text search query'),
+      after: z.string().optional().describe('Pagination cursor'),
+      // Common parameters
+      limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
+    };
+
+    this.server.tool(
+      'hubspotEmail',
+      allEmailParams,
+      async (params: any) => {
+        try {
+          const { operation, ...operationParams } = params;
+          let selectedTool: ToolDefinition | undefined;
+
+          switch (operation) {
+            case 'create':
+              selectedTool = emailTools.find(t => t.name === 'create');
+              break;
+            case 'get':
+              selectedTool = emailTools.find(t => t.name === 'get');
+              break;
+            case 'update':
+              selectedTool = emailTools.find(t => t.name === 'update');
+              break;
+            case 'delete':
+              selectedTool = emailTools.find(t => t.name === 'delete');
+              break;
+            case 'list':
+              selectedTool = emailTools.find(t => t.name === 'list');
+              break;
+            case 'recent':
+              selectedTool = emailTools.find(t => t.name === 'recent');
+              break;
+            default:
+              throw new Error(`Unknown email operation: ${operation}`);
+          }
+
+          if (!selectedTool || !selectedTool.handler) {
+            throw new Error(`Handler not found for email operation: ${operation}`);
+          }
+          
+          // Validate parameters against the tool's inputSchema
+          if (selectedTool.inputSchema) {
+            try {
+              // This will throw an error if validation fails
+              validateParams(operationParams, selectedTool.inputSchema, selectedTool.name);
+            } catch (validationError) {
+              throw new Error(`Error performing email operation: ${(validationError as Error).message}`);
+            }
+          }
+          
+          const result = await selectedTool.handler(operationParams);
+          return {
+            content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+          };
+
+        } catch (error) {
+          // Ensure error is an instance of Error
+          const err = error instanceof Error ? error : new Error(String(error));
+          return {
+            content: [{ type: 'text', text: `Error performing email operation: ${err.message}` }],
             isError: true
           };
         }
@@ -1108,23 +1426,40 @@ export class HubspotBCPServer {
    * Start the server
    */
   async start(): Promise<void> {
+    console.error('[HUBSPOT-MCP] Server start() method called');
+    
     try {
-      // Create and connect the transport
+      // Create and connect the transport with timeout handling
+      console.error('[HUBSPOT-MCP] Creating StdioServerTransport...');
       const transport = new StdioServerTransport();
-      await this.server.connect(transport);
+      console.error('[HUBSPOT-MCP] Transport created');
+      
+      // Add timeout handling for server startup
+      console.error('[HUBSPOT-MCP] Connecting to transport...');
+      const connectPromise = this.server.connect(transport);
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Server startup timeout after 30 seconds')), 30000);
+      });
+      
+      await Promise.race([connectPromise, timeoutPromise]);
+      console.error('[HUBSPOT-MCP] Connected to transport successfully');
       
       // Use stderr for logging to avoid interfering with the JSON-RPC protocol
-      console.error('HubSpot BCP Server started');
+      console.error('HubSpot DXT Extension started successfully');
       console.error('Available tools:');
       console.error('- hubspotCompany: Company operations (create, get, update, delete, search, recent)');
       console.error('- hubspotContact: Contact operations (create, get, update, delete, search, recent)');
-      console.error('- hubspotDeal: Deal operations (create, get, update, delete, search, recent, batchCreate, batchUpdate)');
+      console.error('- hubspotDeal: Deal operations (create, get, update, delete, search, recent, batch)');
       console.error('- hubspotBlogPost: Blog post operations (create, get, update, delete, recent)');
-      console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent)');
-      console.error('- hubspotAssociation: Association operations (create, createDefault, delete, list, batchCreate, batchCreateDefault, batchDelete, batchRead, deleteLabels)');
-      console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent)');
+      console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent, associations)');
+      console.error('- hubspotAssociation: Association operations (create, read, delete relationships, batch)');
+      console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent, line items)');
+      console.error('- hubspotProduct: Product operations (get, list, search)');
+      console.error('- hubspotProperty: Property operations (list, get, create, update, delete, property groups)');
+      console.error('- hubspotEmail: Email operations (create, get, update, delete, list, recent)');
     } catch (error) {
-      console.error('Failed to start server:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Failed to start DXT server:', errorMessage);
       throw error;
     }
   }
@@ -1144,7 +1479,14 @@ export class HubspotBCPServer {
  * @returns HubspotBCPServer instance
  */
 export async function createServer(apiKey: string): Promise<HubspotBCPServer> {
+  console.error('[HUBSPOT-MCP] createServer called with apiKey:', apiKey ? 'present' : 'missing');
   const server = new HubspotBCPServer(apiKey);
+  console.error('[HUBSPOT-MCP] HubspotBCPServer instance created');
+  
+  // Initialize server (fetch property groups and register tools)
+  await server.init();
+  
   await server.start();
+  console.error('[HUBSPOT-MCP] Server started successfully');
   return server;
 }

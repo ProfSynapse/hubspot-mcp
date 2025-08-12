@@ -22,17 +22,10 @@ export class HubspotApiClient {
    * @param apiKey - HubSpot API key
    */
   constructor(apiKey: string) {
-    if (!apiKey) {
-      throw new ApiError(
-        'HubSpot API key is required',
-        401,
-        'initialization',
-        'auth_error'
-      );
-    }
-    
+    // For DXT extensions, we allow empty API key during initialization
+    // The key will be provided later through the extension settings UI
     this.client = new Client({
-      accessToken: apiKey
+      accessToken: apiKey || 'placeholder'
     });
   }
 

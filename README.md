@@ -10,6 +10,7 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
 - **🚨 Error Handling**: Consistent error handling across all operations with detailed debugging
 - **💰 Quote Management**: Complete quote lifecycle management with line items support
 - **📦 Product Integration**: Full product catalog integration with line item associations
+- **📧 Email Marketing**: Complete marketing email management with CRUD operations
 - **🔗 Advanced Associations**: Comprehensive CRM object association management using HubSpot's v4 API
 - **⚡ Performance Optimized**: Built with modern Node.js and optimized API calls
 
@@ -84,6 +85,24 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
   - Search products: `hubspotProduct({ operation: "search", name: "laptop" })`
   - Get product details: `hubspotProduct({ operation: "get", id: "12345" })`
 
+### hubspotEmail ⭐ **Latest Addition**
+- **Operations**: create, get, update, delete, list, recent
+- **✨ Features**: 
+  - Complete marketing email management using HubSpot's Marketing Email API v3
+  - CRUD operations for email creation, editing, and organization
+  - Advanced filtering by state, type, and date ranges
+  - Email content management (subject, preview text, sender information)
+  - Template-based email creation support
+  - **Note**: Email sending functionality is intentionally excluded for security
+- **Examples**:
+  - Create email: `hubspotEmail({ operation: "create", name: "Newsletter Q1 2025", subject: "Welcome to our newsletter" })`
+  - Get email: `hubspotEmail({ operation: "get", id: "123456" })`
+  - Update email: `hubspotEmail({ operation: "update", id: "123456", subject: "Updated Subject Line" })`
+  - List emails: `hubspotEmail({ operation: "list", state: "DRAFT", limit: 10 })`
+  - Filter by date: `hubspotEmail({ operation: "list", createdAfter: "2025-01-01", createdBefore: "2025-12-31" })`
+  - Recent emails: `hubspotEmail({ operation: "recent", limit: 5 })`
+  - Delete email: `hubspotEmail({ operation: "delete", id: "123456" })`
+
 
 ## Setup
 
@@ -140,6 +159,8 @@ src/
   │   ├── Associations/    # Associations BCP
   │   ├── BlogPosts/       # BlogPosts BCP
   │   ├── Quotes/          # Quotes BCP
+  │   ├── Emails/          # Emails BCP
+  │   └── Products/        # Products BCP
   └── index.ts             # Entry point
 ```
 

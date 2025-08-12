@@ -1,0 +1,53 @@
+# DXT ignore file - similar to .gitignore but for DXT packaging
+
+# Development files
+src/
+*.ts
+tsconfig.json
+jest.config.js
+
+# Tests
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+
+# Development dependencies and cache
+node_modules/.cache/
+.npm/
+.yarn/
+
+# Documentation (keep only essential docs in the extension)
+*.md
+!DXT_SETUP.md
+
+# Build artifacts that aren't needed in the extension
+.tsbuildinfo
+
+# Environment files
+.env*
+!.env.example
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git files
+.git/
+.gitignore
+
+# Logs
+logs/
+*.log
+
+# Coverage reports
+coverage/
+
+# Temporary files
+tmp/
+temp/
