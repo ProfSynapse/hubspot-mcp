@@ -74,7 +74,7 @@ export class PropertiesService extends HubspotBaseService {
       });
 
       const data = await response.json();
-      return data.results.map((property: any) => this.transformPropertyResponse(property));
+      return (data.results || []).map((property: any) => this.transformPropertyResponse(property));
     } catch (error) {
       throw this.handleApiError(error, `Failed to get properties for ${objectType}`);
     }
@@ -209,7 +209,7 @@ export class PropertiesService extends HubspotBaseService {
       });
 
       const data = await response.json();
-      return data.results.map((group: any) => this.transformPropertyGroupResponse(group));
+      return (data.results || []).map((group: any) => this.transformPropertyGroupResponse(group));
     } catch (error) {
       throw this.handleApiError(error, `Failed to get property groups for ${objectType}`);
     }
