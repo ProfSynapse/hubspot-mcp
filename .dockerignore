@@ -67,7 +67,6 @@ temp/
 .eslintrc*
 .prettierrc*
 jest.config.js
-tsconfig.json
 
 # Railway specific
 railway.json
