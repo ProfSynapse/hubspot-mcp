@@ -455,21 +455,13 @@ app.post('/mcp', [
         // Handle notifications/initialized - this is a notification, no response needed
         logger.info({ sessionId }, '🔔 NOTIFICATIONS/INITIALIZED received - client is ready');
         
-        // Start monitoring for tools/list request
+        // Simple timeout to check for tools/list request
         logger.warn({ sessionId }, '⏰ STARTING TOOLS/LIST MONITORING - expecting request soon...');
         
-        let toolsRequestReceived = false;
-        const checkInterval = setInterval(() => {
-          if (!toolsRequestReceived) {
-            logger.warn({ sessionId }, '⚠️ STILL WAITING: No tools/list request received yet...');
-          } else {
-            clearInterval(checkInterval);
-          }
-        }, 3000);
-        
-        // Store the interval ID for this session
-        (global as any).toolsMonitor = (global as any).toolsMonitor || {};
-        (global as any).toolsMonitor[sessionId] = { checkInterval, toolsRequestReceived: false };
+        setTimeout(() => {
+          logger.error({ sessionId }, '🚨 CRITICAL: 10 seconds passed and NO tools/list request received from Claude Desktop!');
+          logger.error({ sessionId }, '🚨 This indicates Claude Desktop is not recognizing our tools capability properly!');
+        }, 10000);
         
         // Don't set mcpResponse - notifications don't get responses
         // Just continue without setting a response
@@ -487,7 +479,13 @@ app.post('/mcp', [
       }
       
     } catch (requestError) {
-      logger.error({ error: requestError, sessionId }, 'Error processing MCP request');
+      logger.error({ 
+        error: requestError, 
+        sessionId, 
+        method: jsonrpcMessage?.method,
+        errorMessage: requestError instanceof Error ? requestError.message : String(requestError),
+        stack: requestError instanceof Error ? requestError.stack : undefined
+      }, '🚨 ERROR PROCESSING MCP REQUEST - this is causing the MCP Request Error!');
       mcpResponse = {
         jsonrpc: '2.0',
         id: jsonrpcMessage.id || null,
