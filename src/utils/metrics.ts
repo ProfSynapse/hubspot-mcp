@@ -315,4 +315,5 @@ export const metricsMiddleware = (req: Request, res: Response, next: NextFunctio
   next();
 };
 
-export { MetricsCollector, MetricsData };
+export { MetricsCollector };
+export type { MetricsData };

@@ -334,4 +334,5 @@ export const createDevelopmentToken = (payload: Partial<AuthContext>, secret: st
   return jwt.sign({ ...defaultPayload, ...payload }, secret);
 };
 
-export { AuthenticatedRequest, AuthConfig, MCPPermissions, MCPErrorCodes, permissionValidator };
+export type { AuthenticatedRequest, AuthConfig };
+export { permissionValidator };

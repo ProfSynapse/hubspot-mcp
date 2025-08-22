@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from 'crypto';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 
 export interface AuthContext {
   userId: string;
@@ -40,7 +40,7 @@ export enum SessionState {
 
 export interface SessionContext {
   id: string;
-  transport: StreamableHTTPServerTransport;
+  transport: SSEServerTransport;
   auth?: AuthContext;
   created: Date;
   lastActivity: Date;
@@ -57,7 +57,7 @@ interface SessionConfig {
 
 export class SessionManager {
   private sessions = new Map<string, SessionContext>();
-  private cleanupTimer: NodeJS.Timeout;
+  private cleanupTimer: NodeJS.Timeout | null = null;
   
   constructor(private config: SessionConfig) {
     console.log(`[SessionManager] Initializing with maxSessions: ${config.maxSessions}, maxAge: ${config.maxAge}ms`);
@@ -74,7 +74,7 @@ export class SessionManager {
     
     const session: SessionContext = {
       id: sessionId,
-      transport: new StreamableHTTPServerTransport(),
+      transport: new SSEServerTransport('/mcp', {} as any), // Will be properly initialized in HTTP server
       auth,
       created: now,
       lastActivity: now,
@@ -247,6 +247,7 @@ export class SessionManager {
     // Clear cleanup timer
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
     }
     
     // Terminate all sessions

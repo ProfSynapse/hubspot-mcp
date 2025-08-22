@@ -61,7 +61,10 @@ export class HealthChecker {
     ]);
     
     const memory = process.memoryUsage();
-    const sessionStats = this.sessionManager?.getStats() || { total: 0, byState: {} };
+    const sessionStats = this.sessionManager?.getStats() || { 
+      total: 0, 
+      byState: { active: 0, idle: 0 } as Record<string, number>
+    };
     const metrics = metricsCollector.getMetrics();
     
     const overallStatus = this.determineOverallStatus([
@@ -82,8 +85,8 @@ export class HealthChecker {
       },
       sessions: {
         total: sessionStats.total,
-        active: sessionStats.byState?.active || 0,
-        idle: sessionStats.byState?.idle || 0
+        active: (sessionStats.byState as any)?.active || 0,
+        idle: (sessionStats.byState as any)?.idle || 0
       },
       dependencies: {
         hubspot: hubspotHealth.status === 'fulfilled' ? hubspotHealth.value : {

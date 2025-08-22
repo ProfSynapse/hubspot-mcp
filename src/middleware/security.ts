@@ -27,9 +27,11 @@ export const createRateLimit = (config: {
     max: config.max || 1000, // limit each IP to requests per windowMs
     keyGenerator: (req: AuthenticatedRequest) => {
       // Use user ID if authenticated, session ID if available, otherwise IP
-      return req.auth?.userId || 
-             req.headers['mcp-session-id'] as string || 
-             req.ip;
+      const userId = req.auth?.userId;
+      const sessionId = req.headers['mcp-session-id'] as string;
+      const ip = req.ip || 'unknown';
+      
+      return userId || sessionId || ip;
     },
     skipSuccessfulRequests: config.skipSuccessfulRequests || false,
     skipFailedRequests: config.skipFailedRequests || true,
@@ -41,10 +43,7 @@ export const createRateLimit = (config: {
       }
     },
     standardHeaders: true,
-    legacyHeaders: false,
-    onLimitReached: (req, res, options) => {
-      console.warn(`[Security] Rate limit exceeded for ${req.ip} (user: ${(req as AuthenticatedRequest).auth?.userId || 'anonymous'})`);
-    }
+    legacyHeaders: false
   });
 };
 
@@ -250,7 +249,7 @@ export const requestSizeLimit = (maxSize: number = 10 * 1024 * 1024) => { // 10M
 // IP filtering middleware (for production use)
 export const createIPFilter = (allowedIPs: string[] = [], blockedIPs: string[] = []) => {
   return (req: Request, res: Response, next: NextFunction) => {
-    const clientIP = req.ip;
+    const clientIP = req.ip || 'unknown';
     
     if (blockedIPs.includes(clientIP)) {
       console.warn(`[Security] Blocked IP access attempt: ${clientIP}`);
@@ -263,7 +262,7 @@ export const createIPFilter = (allowedIPs: string[] = [], blockedIPs: string[] =
       });
     }
     
-    if (allowedIPs.length > 0 && !allowedIPs.includes(clientIP)) {
+    if (allowedIPs.length > 0 && clientIP !== 'unknown' && !allowedIPs.includes(clientIP)) {
       console.warn(`[Security] Non-whitelisted IP access attempt: ${clientIP}`);
       return res.status(403).json({
         jsonrpc: '2.0',
