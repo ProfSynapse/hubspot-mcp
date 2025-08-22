@@ -39,6 +39,23 @@ export interface DealResponse {
   updatedAt: string;
 }
 
+export interface DealStage {
+  id: string;
+  label: string;
+  displayOrder: number;
+  probability: number;
+  closed: boolean;
+}
+
+export interface DealPipeline {
+  id: string;
+  label: string;
+  stages: DealStage[];
+  default: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class DealsService extends HubspotBaseService {
   /**
    * Create a new deal
@@ -308,6 +325,61 @@ export class DealsService extends HubspotBaseService {
       }));
     } catch (error) {
       throw this.handleApiError(error, 'Failed to batch update deals');
+    }
+  }
+
+  /**
+   * Get all deal pipelines with their stages
+   */
+  async getDealPipelines(): Promise<DealPipeline[]> {
+    this.checkInitialized();
+
+    try {
+      const response = await this.client.crm.pipelines.pipelinesApi.getAll('deals');
+
+      return response.results.map(pipeline => ({
+        id: pipeline.id,
+        label: pipeline.label,
+        stages: pipeline.stages.map(stage => ({
+          id: stage.id,
+          label: stage.label,
+          displayOrder: stage.displayOrder,
+          probability: (stage.metadata as any)?.probability ? Number((stage.metadata as any).probability) / 100 : 0,
+          closed: Boolean((stage.metadata as any)?.isClosed)
+        })),
+        default: Boolean((pipeline as any).default),
+        createdAt: new Date(pipeline.createdAt).toISOString(),
+        updatedAt: new Date(pipeline.updatedAt).toISOString()
+      }));
+    } catch (error) {
+      throw this.handleApiError(error, 'Failed to get deal pipelines');
+    }
+  }
+
+  /**
+   * Get all available deal stages across all pipelines
+   */
+  async getAllDealStages(): Promise<{ stageId: string; stageName: string; pipelineId: string; pipelineName: string }[]> {
+    this.checkInitialized();
+
+    try {
+      const pipelines = await this.getDealPipelines();
+      const stages: { stageId: string; stageName: string; pipelineId: string; pipelineName: string }[] = [];
+      
+      pipelines.forEach(pipeline => {
+        pipeline.stages.forEach(stage => {
+          stages.push({
+            stageId: stage.id,
+            stageName: stage.label,
+            pipelineId: pipeline.id,
+            pipelineName: pipeline.label
+          });
+        });
+      });
+      
+      return stages;
+    } catch (error) {
+      throw this.handleApiError(error, 'Failed to get all deal stages');
     }
   }
 }

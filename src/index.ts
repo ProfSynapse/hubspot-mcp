@@ -7,13 +7,33 @@
  * It creates and starts the server with the BCP architecture.
  */
 
-// Log to stderr immediately to debug startup issues
-console.error('[HUBSPOT-MCP] Starting HubSpot MCP Extension...');
-console.error('[HUBSPOT-MCP] Node version:', process.version);
-console.error('[HUBSPOT-MCP] Current directory:', process.cwd());
-console.error('[HUBSPOT-MCP] Script location:', import.meta.url);
+// File logging for DXT debugging since stderr is suppressed
+import { appendFileSync } from 'fs';
 
-import { createServer } from './core/server.js';
+function debugLog(message: string) {
+  try {
+    const logLine = `${new Date().toISOString()} ${message}\n`;
+    appendFileSync('debug.log', logLine);
+  } catch (e) {
+    // Fallback to stderr if file logging fails
+    console.error('[HUBSPOT-MCP]', message);
+  }
+}
+
+debugLog('=== STARTING HUBSPOT MCP EXTENSION ===');
+debugLog(`Node version: ${process.version}`);
+debugLog(`Current directory: ${process.cwd()}`);
+debugLog(`Script location: ${import.meta.url}`);
+
+debugLog('Attempting to import createServer...');
+try {
+  var { createServer } = await import('./core/server.js');
+  debugLog('✅ createServer imported successfully');
+} catch (error) {
+  debugLog(`💥 Failed to import createServer: ${error instanceof Error ? error.message : String(error)}`);
+  debugLog(`💥 Stack: ${error instanceof Error ? error.stack : 'No stack'}`);
+  process.exit(1);
+}
 
 // Log after imports to check if module loading is the issue
 console.error('[HUBSPOT-MCP] Modules loaded successfully');
@@ -22,19 +42,17 @@ console.error('[HUBSPOT-MCP] Modules loaded successfully');
  * Main function to start the server
  */
 async function main(): Promise<void> {
-  console.error('[HUBSPOT-MCP] Main function called');
+  debugLog('Main function called');
   
   try {
-    // Get HubSpot API key from environment
-    // For DXT extensions, Claude Desktop will set this from user config
+    debugLog('Getting API key from environment...');
     const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || process.env.hubspot_access_token || '';
-    console.error('[HUBSPOT-MCP] API Key present:', !!apiKey);
-    console.error('[HUBSPOT-MCP] Environment variables:', Object.keys(process.env).join(', '));
+    debugLog(`API Key present: ${!!apiKey}`);
+    debugLog(`Environment variables count: ${Object.keys(process.env).length}`);
     
-    // Create and start the server (it will handle missing token gracefully)
-    console.error('[HUBSPOT-MCP] Creating server...');
+    debugLog('Creating server...');
     const server = await createServer(apiKey);
-    console.error('[HUBSPOT-MCP] Server created successfully');
+    debugLog('✅ Server created successfully');
     
     // Use stderr for logging to avoid interfering with the JSON-RPC protocol
     console.error('HubSpot DXT Extension is running');
@@ -61,28 +79,29 @@ async function main(): Promise<void> {
     
     console.error('[HUBSPOT-MCP] Server startup complete');
   } catch (error) {
-    console.error('[HUBSPOT-MCP] Failed to start server:', error);
-    console.error('[HUBSPOT-MCP] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    debugLog(`💥 Failed to start server: ${error instanceof Error ? error.message : String(error)}`);
+    debugLog(`💥 Error stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
     process.exit(1);
   }
 }
 
 // Add global error handlers
 process.on('uncaughtException', (error) => {
-  console.error('[HUBSPOT-MCP] Uncaught Exception:', error);
-  console.error('[HUBSPOT-MCP] Stack:', error.stack);
+  debugLog(`💥 Uncaught Exception: ${error.message}`);
+  debugLog(`💥 Stack: ${error.stack}`);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[HUBSPOT-MCP] Unhandled Rejection at:', promise, 'reason:', reason);
+  debugLog(`💥 Unhandled Rejection: ${reason}`);
+  debugLog(`💥 Promise: ${promise}`);
   process.exit(1);
 });
 
 // Start the server
-console.error('[HUBSPOT-MCP] Calling main function...');
+debugLog('Calling main function...');
 main().catch(error => {
-  console.error('[HUBSPOT-MCP] Unhandled error in main:', error);
-  console.error('[HUBSPOT-MCP] Stack:', error instanceof Error ? error.stack : 'No stack trace');
+  debugLog(`💥 Unhandled error in main: ${error instanceof Error ? error.message : String(error)}`);
+  debugLog(`💥 Stack: ${error instanceof Error ? error.stack : 'No stack trace'}`);
   process.exit(1);
 });

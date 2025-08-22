@@ -25,10 +25,10 @@
   "license": "MIT",
   "server": {
     "type": "node",
-    "entry_point": "build/index.js",
+    "entry_point": "test-simple.cjs",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/build/index.js"],
+      "args": ["${__dirname}/test-simple.cjs"],
       "env": {
         "HUBSPOT_ACCESS_TOKEN": "${user_config.hubspot_access_token}",
         "NODE_ENV": "production",

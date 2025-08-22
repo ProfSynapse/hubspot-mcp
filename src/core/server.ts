@@ -25,6 +25,7 @@ export class HubspotBCPServer {
   private apiClient: HubspotApiClient;
   private propertyGroupsCache = new Map<string, string[]>();
   private blogsCache = new Map<string, string>(); // blogId -> blogName
+  private dealStagesCache = new Map<string, string>(); // stageId -> stageName
   
   /**
    * Create a new HubSpot BCP Server
@@ -68,12 +69,13 @@ export class HubspotBCPServer {
   }
 
   /**
-   * Fetch property groups and blogs at startup
+   * Fetch property groups, blogs, and deal stages at startup
    */
   private async fetchPropertyGroups(): Promise<void> {
     await Promise.all([
       this.fetchPropertyGroupsForObjects(),
-      this.fetchAvailableBlogs()
+      this.fetchAvailableBlogs(),
+      this.fetchDealStages()
     ]);
   }
 
@@ -146,6 +148,44 @@ export class HubspotBCPServer {
   }
 
   /**
+   * Fetch available deal stages at startup
+   */
+  private async fetchDealStages(): Promise<void> {
+    try {
+      console.error('[HUBSPOT-MCP] Fetching available deal stages...');
+      
+      const accessToken = process.env.HUBSPOT_ACCESS_TOKEN;
+      if (!accessToken) {
+        console.error('[HUBSPOT-MCP] No access token available, skipping deal stages fetch');
+        return;
+      }
+      
+      // Create a temporary DealsService instance to fetch stages
+      const { DealsService } = await import('../bcps/Deals/deals.service.js');
+      const tempConfig = {
+        hubspotAccessToken: accessToken,
+      };
+      
+      const service = new DealsService(tempConfig);
+      await service.init();
+      
+      const stages = await service.getAllDealStages();
+      
+      // Cache stage ID -> stage name with pipeline context
+      stages.forEach(stage => {
+        const stageLabel = `${stage.stageName} (${stage.pipelineName})`;
+        this.dealStagesCache.set(stage.stageId, stageLabel);
+      });
+      
+      console.error(`[HUBSPOT-MCP] Cached ${stages.length} deal stages:`, Array.from(this.dealStagesCache.values()).slice(0, 3).join(', ') + (stages.length > 3 ? '...' : ''));
+      
+    } catch (error) {
+      console.error('[HUBSPOT-MCP] Failed to fetch deal stages:', (error as Error).message);
+      // Continue without cached stages - users can still create deals
+    }
+  }
+
+  /**
    * Get property groups for a specific object type from cache
    */
   private getPropertyGroups(objectType: string): string[] {
@@ -188,6 +228,22 @@ export class HubspotBCPServer {
     } else {
       console.error('[HUBSPOT-MCP] No cached blogs found, using string schema for contentGroupId');
       return z.string().describe('Blog ID to publish to (use list operation to see available blogs)');
+    }
+  }
+
+  /**
+   * Create dynamic dealstage schema based on cached deal stages
+   */
+  private createDealStageSchema() {
+    const stageIds = Array.from(this.dealStagesCache.keys());
+    
+    // If we have cached deal stages, create an enum with IDs, otherwise allow any string
+    if (stageIds.length > 0) {
+      console.error(`[HUBSPOT-MCP] Creating dynamic dealstage enum with ${stageIds.length} stage options`);
+      return z.enum(stageIds as [string, ...string[]]).describe(`Deal stage ID within the pipeline. Available stages: ${Array.from(this.dealStagesCache.entries()).map(([id, name]) => `${id} (${name})`).join(', ')}`);
+    } else {
+      console.error('[HUBSPOT-MCP] No cached deal stages found, using string schema for dealstage');
+      return z.string().describe('Deal stage ID within the pipeline');
     }
   }
 
@@ -857,7 +913,7 @@ export class HubspotBCPServer {
         // Parameters for create operation
         dealname: z.string().optional().describe('Deal name (required for create operation)'),
         pipeline: z.string().optional().describe('Pipeline ID the deal belongs to'),
-        dealstage: z.string().optional().describe('Deal stage ID within the pipeline'),
+        dealstage: this.createDealStageSchema().optional(),
         amount: z.string().optional().describe('Deal amount in currency'),
         closedate: z.string().optional().describe('Expected close date (ISO 8601 format: YYYY-MM-DD)'),
         description: z.string().optional().describe('Deal description'),
@@ -890,7 +946,7 @@ export class HubspotBCPServer {
         deals: z.array(z.object({
           dealname: z.string(),
           pipeline: z.string().optional(),
-          dealstage: z.string().optional(),
+          dealstage: this.createDealStageSchema().optional(),
           amount: z.string().optional(),
           closedate: z.string().optional(),
           description: z.string().optional(),
@@ -901,7 +957,7 @@ export class HubspotBCPServer {
           properties: z.object({
             dealname: z.string().optional(),
             pipeline: z.string().optional(),
-            dealstage: z.string().optional(),
+            dealstage: this.createDealStageSchema().optional(),
             amount: z.string().optional(),
             closedate: z.string().optional(),
             description: z.string().optional(),
@@ -922,6 +978,9 @@ export class HubspotBCPServer {
             case 'create':
               if (!params.dealname) {
                 throw new Error('Deal name is required for create operation');
+              }
+              if (!params.dealstage) {
+                throw new Error('Deal stage is required for create operation');
               }
               break;
             case 'get':
@@ -946,6 +1005,14 @@ export class HubspotBCPServer {
               if (!params.deals || params.deals.length === 0) {
                 throw new Error('Deals array is required for batchCreate operation');
               }
+              params.deals.forEach((deal: any, index: number) => {
+                if (!deal.dealname) {
+                  throw new Error(`Deal name is required for deal ${index + 1} in batchCreate operation`);
+                }
+                if (!deal.dealstage) {
+                  throw new Error(`Deal stage is required for deal ${index + 1} in batchCreate operation`);
+                }
+              });
               break;
             case 'batchUpdate':
               if (!params.updates || params.updates.length === 0) {
