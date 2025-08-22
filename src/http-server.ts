@@ -431,6 +431,11 @@ app.post('/mcp', [
         setTimeout(() => {
           logger.warn({ sessionId }, '⚠️ TIMEOUT: 5 seconds passed since prompts/list - still no tools/list request from Claude Desktop');
         }, 5000);
+      } else if (jsonrpcMessage.method === 'notifications/initialized') {
+        // Handle notifications/initialized - this is a notification, no response needed
+        logger.info({ sessionId }, '🔔 NOTIFICATIONS/INITIALIZED received - client is ready');
+        // Don't set mcpResponse - notifications don't get responses
+        // Just continue without setting a response
       } else {
         // Method not found
         logger.error({ method: jsonrpcMessage.method, sessionId }, '❌ METHOD NOT FOUND - Claude requested unhandled method');
@@ -464,8 +469,14 @@ app.post('/mcp', [
     if (session) {
       session.state = 'active' as any;
     }
-      
-    res.json(mcpResponse);
+    
+    // Only send response if we have one (notifications don't get responses)
+    if (mcpResponse) {
+      res.json(mcpResponse);
+    } else {
+      // For notifications, send a 204 No Content response
+      res.status(204).end();
+    }
     
   } catch (error) {
     const duration = Date.now() - startTime;
