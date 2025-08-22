@@ -330,7 +330,9 @@ app.post('/mcp', [
           result: {
             protocolVersion: '2025-03-26',
             capabilities: {
-              tools: {},
+              tools: {
+                listChanged: false
+              },
               prompts: {},
               resources: {},
               logging: {}
