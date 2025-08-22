@@ -415,8 +415,25 @@ app.post('/mcp', [
           
           logger.info({ toolCount: toolsList.length, responseSize: JSON.stringify(mcpResponse).length, sessionId }, '📋 Sending tools/list response to Claude');
         }
+      } else if (jsonrpcMessage.method === 'prompts/list') {
+        // Handle prompts/list - we don't have prompts but need to return empty list
+        logger.info({ sessionId }, '📝 PROMPTS/LIST REQUEST RECEIVED! Returning empty prompts list');
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id,
+          result: {
+            prompts: []
+          }
+        };
+        logger.info({ sessionId }, '📝 Sent empty prompts/list response - Claude should request tools/list next');
+        
+        // Add a timeout to check if tools/list is requested
+        setTimeout(() => {
+          logger.warn({ sessionId }, '⚠️ TIMEOUT: 5 seconds passed since prompts/list - still no tools/list request from Claude Desktop');
+        }, 5000);
       } else {
         // Method not found
+        logger.error({ method: jsonrpcMessage.method, sessionId }, '❌ METHOD NOT FOUND - Claude requested unhandled method');
         mcpResponse = {
           jsonrpc: '2.0',
           id: jsonrpcMessage.id || null,
