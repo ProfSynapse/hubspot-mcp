@@ -507,7 +507,26 @@ async function initializeServer(): Promise<void> {
     // Create OAuth service
     logger.info('Creating OAuth service...');
     const protocol = config.NODE_ENV === 'production' ? 'https' : 'http';
-    const baseUrl = process.env.BASE_URL || `${protocol}://${config.HOST}:${config.PORT}`;
+    
+    // Determine the correct base URL for OAuth
+    let baseUrl = process.env.BASE_URL;
+    if (!baseUrl) {
+      if (config.NODE_ENV === 'production') {
+        // In production on Railway, use the Railway URL if available
+        const railwayUrl = process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
+        if (railwayUrl) {
+          baseUrl = `https://${railwayUrl}`;
+        } else {
+          // Fallback for production without Railway
+          baseUrl = `${protocol}://localhost:${config.PORT}`;
+        }
+      } else {
+        // In development, always use localhost instead of 0.0.0.0
+        const host = config.HOST === '0.0.0.0' ? 'localhost' : config.HOST;
+        baseUrl = `${protocol}://${host}:${config.PORT}`;
+      }
+    }
+    
     const issuer = process.env.OAUTH_ISSUER || baseUrl;
     oauthService = new OAuthService(issuer, baseUrl);
     logger.info(`OAuth service initialized with base URL: ${baseUrl}`);
