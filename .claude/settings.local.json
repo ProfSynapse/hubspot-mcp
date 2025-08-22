@@ -39,9 +39,13 @@
       "Bash(git reset:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "WebFetch(domain:spec.modelcontextprotocol.io)"
+      "WebFetch(domain:spec.modelcontextprotocol.io)",
+      "Bash(git clone:*)"
     ],
-    "deny": []
+    "deny": [],
+    "additionalDirectories": [
+      "/tmp"
+    ]
   },
   "enableAllProjectMcpServers": false
 }
