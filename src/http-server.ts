@@ -303,8 +303,19 @@ app.post('/mcp', [
     // Process JSON-RPC message directly (HTTP Streamable transport)
     const jsonrpcMessage = req.body;
     
-    // Log all incoming MCP requests for debugging
-    logger.info({ method: jsonrpcMessage.method, id: jsonrpcMessage.id, sessionId }, `📨 MCP REQUEST: ${jsonrpcMessage.method}`);
+    // Log all incoming MCP requests for debugging with headers
+    logger.info({ 
+      method: jsonrpcMessage.method, 
+      id: jsonrpcMessage.id, 
+      sessionId,
+      headers: {
+        'mcp-session-id': req.headers['mcp-session-id'],
+        'content-type': req.headers['content-type'],
+        'user-agent': req.headers['user-agent'],
+        'accept': req.headers['accept']
+      },
+      requestBody: jsonrpcMessage
+    }, `📨 MCP REQUEST: ${jsonrpcMessage.method}`);
     
     // Validate JSON-RPC format
     if (!jsonrpcMessage || typeof jsonrpcMessage !== 'object') {
@@ -351,6 +362,15 @@ app.post('/mcp', [
         };
         
         logger.info({ capabilities: initializeResponse.result.capabilities, sessionId }, 'Sending initialize response with tools capability enabled');
+        
+        // Log the EXACT initialize response being sent to Claude Desktop
+        logger.info({ 
+          fullResponse: JSON.stringify(initializeResponse, null, 2), 
+          responseSize: JSON.stringify(initializeResponse).length,
+          toolsCapability: initializeResponse.result.capabilities.tools,
+          sessionId 
+        }, '📤 EXACT INITIALIZE RESPONSE being sent to Claude Desktop');
+        
         mcpResponse = initializeResponse;
       } else if (jsonrpcMessage.method === 'ping') {
         // Handle ping
@@ -434,6 +454,23 @@ app.post('/mcp', [
       } else if (jsonrpcMessage.method === 'notifications/initialized') {
         // Handle notifications/initialized - this is a notification, no response needed
         logger.info({ sessionId }, '🔔 NOTIFICATIONS/INITIALIZED received - client is ready');
+        
+        // Start monitoring for tools/list request
+        logger.warn({ sessionId }, '⏰ STARTING TOOLS/LIST MONITORING - expecting request soon...');
+        
+        let toolsRequestReceived = false;
+        const checkInterval = setInterval(() => {
+          if (!toolsRequestReceived) {
+            logger.warn({ sessionId }, '⚠️ STILL WAITING: No tools/list request received yet...');
+          } else {
+            clearInterval(checkInterval);
+          }
+        }, 3000);
+        
+        // Store the interval ID for this session
+        (global as any).toolsMonitor = (global as any).toolsMonitor || {};
+        (global as any).toolsMonitor[sessionId] = { checkInterval, toolsRequestReceived: false };
+        
         // Don't set mcpResponse - notifications don't get responses
         // Just continue without setting a response
       } else {
