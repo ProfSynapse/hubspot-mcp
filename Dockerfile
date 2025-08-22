@@ -11,19 +11,16 @@ RUN apk add --no-cache libc6-compat
 COPY package*.json ./
 
 # Install all dependencies (including devDependencies for build)
-RUN npm ci
+RUN npm install
 
 # Copy source code
 COPY . .
 
-# Debug and build the TypeScript project
-RUN ls -la src/ && \
-    cat tsconfig.json && \
-    npx tsc --version && \
-    npx tsc --project tsconfig.json
+# Build the TypeScript project
+RUN npm run build
 
 # Remove devDependencies to reduce image size
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --production && npm cache clean --force
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
