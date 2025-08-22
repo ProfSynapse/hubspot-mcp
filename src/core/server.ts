@@ -1595,6 +1595,13 @@ export class HubspotBCPServer {
   getApiClient(): HubspotApiClient {
     return this.apiClient;
   }
+  
+  /**
+   * Get the MCP server instance
+   */
+  getServer(): McpServer {
+    return this.server;
+  }
 }
 
 /**

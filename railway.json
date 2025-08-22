@@ -1,0 +1,36 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm run build",
+    "watchPatterns": [
+      "src/**",
+      "package.json",
+      "tsconfig.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "healthcheckInterval": 60
+  },
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "info",
+        "METRICS_ENABLED": "true"
+      }
+    },
+    "staging": {
+      "variables": {
+        "NODE_ENV": "staging", 
+        "LOG_LEVEL": "debug",
+        "METRICS_ENABLED": "true"
+      }
+    }
+  }
+}

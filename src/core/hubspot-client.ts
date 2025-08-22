@@ -43,6 +43,20 @@ export class HubspotApiClient {
   }
 
   /**
+   * Test connection to HubSpot API
+   * 
+   * @returns Promise that resolves if connection is successful
+   */
+  async testConnection(): Promise<void> {
+    try {
+      // Use a lightweight API call to test connectivity
+      await this.client.crm.companies.basicApi.getPage(1, undefined, undefined, undefined, undefined, false);
+    } catch (error) {
+      this.handleApiError(error, 'testConnection');
+    }
+  }
+
+  /**
    * Handle API errors consistently
    */
   private handleApiError(error: unknown, operation: string): never {
