@@ -11,10 +11,11 @@
 
 import express, { Request, Response, NextFunction } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { HttpStreamableTransport } from './core/http-transport.js';
 import { HubspotBCPServer } from './core/server.js';
 import { loadConfig, validateConfiguration, isDevelopment } from './config/environment.js';
 import { SessionManager, SessionContext } from './core/session-manager.js';
+import { OAuthService } from './oauth/oauth-service.js';
 import { createLogger, createRequestLogger, createErrorLogger, logMCPRequest, logMCPResponse, logSessionEvent } from './utils/logger.js';
 import { metricsCollector, metricsMiddleware } from './utils/metrics.js';
 import { HealthChecker, createHealthCheckHandler, railwayHealthCheck, readinessCheck, livenessCheck } from './health/health-check.js';
@@ -47,6 +48,7 @@ const sessionManager = new SessionManager({
 // Global BCP server instance (will be initialized)
 let hubspotBCPServer: HubspotBCPServer | null = null;
 let healthChecker: HealthChecker | null = null;
+let oauthService: OAuthService | null = null;
 
 // Trust proxy for Railway deployment
 app.set('trust proxy', true);
@@ -58,6 +60,7 @@ app.use(securityEventLogger);
 
 // Request parsing and validation
 app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' })); // Support form-encoded data for OAuth
 app.use(requestSizeLimit(10 * 1024 * 1024)); // 10MB limit
 app.use(validateContentType);
 
@@ -87,27 +90,168 @@ if (config.METRICS_ENABLED) {
   });
 }
 
-// MCP Protocol endpoint with authentication
-const authMiddleware = createAuthMiddleware({
-  jwtSecret: config.JWT_SECRET,
-  jwtIssuer: config.JWT_ISSUER,
-  jwtAudience: config.JWT_AUDIENCE,
-  jwksUri: config.JWKS_URI,
-  requiredPermissions: [MCPPermissions.MCP_CALL_TOOLS],
-  allowAnonymous: isDevelopment(config) // Allow anonymous access in development
+// OAuth 2.1 Endpoints (RFC8414 - OAuth 2.0 Authorization Server Metadata)
+app.get('/.well-known/oauth-authorization-server', (req, res) => {
+  if (!oauthService) {
+    return res.status(500).json({ error: 'OAuth service not initialized' });
+  }
+  res.header('MCP-Protocol-Version', '2025-03-26');
+  res.json(oauthService.getServerMetadata());
 });
 
-// Main MCP endpoint
-app.all('/mcp', [
+// Alternative endpoint for OpenID Connect compatibility
+app.get('/.well-known/openid_configuration', (req, res) => {
+  if (!oauthService) {
+    return res.status(500).json({ error: 'OAuth service not initialized' });
+  }
+  res.header('MCP-Protocol-Version', '2025-03-26');
+  res.json(oauthService.getServerMetadata());
+});
+
+// Dynamic Client Registration (RFC7591)
+app.post('/register', async (req, res) => {
+  try {
+    if (!oauthService) {
+      return res.status(500).json({ error: 'OAuth service not initialized' });
+    }
+
+    const client = await oauthService.registerClient(req.body);
+    res.status(201).json({
+      client_id: client.client_id,
+      client_secret: client.client_secret,
+      client_name: client.client_name,
+      redirect_uris: client.redirect_uris,
+      grant_types: client.grant_types,
+      response_types: client.response_types,
+      scope: client.scope,
+      token_endpoint_auth_method: client.token_endpoint_auth_method,
+      client_id_issued_at: Math.floor(client.created_at / 1000)
+    });
+  } catch (error) {
+    logger.error({ error }, 'OAuth client registration failed');
+    res.status(400).json({
+      error: 'invalid_client_metadata',
+      error_description: 'Client registration failed'
+    });
+  }
+});
+
+// OAuth Authorization Endpoint
+app.get('/authorize', async (req, res) => {
+  try {
+    if (!oauthService) {
+      return res.status(500).json({ error: 'OAuth service not initialized' });
+    }
+    await oauthService.authorize(req, res);
+  } catch (error) {
+    logger.error({ error }, 'OAuth authorization failed');
+    res.status(400).json({
+      error: 'server_error',
+      error_description: 'Authorization request failed'
+    });
+  }
+});
+
+// OAuth Token Endpoint
+app.post('/token', async (req, res) => {
+  try {
+    if (!oauthService) {
+      return res.status(500).json({ error: 'OAuth service not initialized' });
+    }
+    await oauthService.token(req, res);
+  } catch (error) {
+    logger.error({ error }, 'OAuth token request failed');
+    res.status(400).json({
+      error: 'server_error',
+      error_description: 'Token request failed'
+    });
+  }
+});
+
+// OAuth Bearer Token Validation Middleware
+const oauthAuthMiddleware = (req: any, res: express.Response, next: express.NextFunction) => {
+  // In development, allow unauthenticated access for testing
+  if (isDevelopment(config) && !req.headers.authorization) {
+    req.auth = { userId: 'dev-user', permissions: ['mcp:read', 'mcp:write'] };
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.header('WWW-Authenticate', 'Bearer realm="MCP Server", error="invalid_request", error_description="Bearer token required"');
+    return res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Authentication required',
+        data: { 
+          error: 'invalid_request',
+          error_description: 'Bearer token required'
+        }
+      }
+    });
+  }
+
+  const token = authHeader.substring(7);
+  if (!oauthService) {
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: 'OAuth service not available'
+      }
+    });
+  }
+
+  const accessToken = oauthService.validateAccessToken(token);
+  if (!accessToken) {
+    res.header('WWW-Authenticate', 'Bearer realm="MCP Server", error="invalid_token", error_description="The access token provided is expired, revoked, malformed, or invalid"');
+    return res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32001,
+        message: 'Invalid or expired token',
+        data: {
+          error: 'invalid_token',
+          error_description: 'The access token provided is expired, revoked, malformed, or invalid'
+        }
+      }
+    });
+  }
+
+  // Set auth context
+  req.auth = {
+    userId: accessToken.user_id || accessToken.client_id,
+    clientId: accessToken.client_id,
+    permissions: accessToken.scope.split(' ')
+  };
+
+  next();
+};
+
+// HTTP Streamable MCP endpoint (single endpoint for all communication)
+app.post('/mcp', [
   validateMCPRequest,
-  authMiddleware,
-  createToolPermissionValidator()
-], async (req: AuthenticatedRequest, res: express.Response) => {
+  oauthAuthMiddleware
+], async (req: any, res: express.Response) => {
   const startTime = Date.now();
   let session: SessionContext | null = null;
   
   try {
-    // Extract or generate session ID
+    // Validate Origin header to prevent DNS rebinding attacks
+    const origin = req.headers.origin;
+    const allowedOrigins = config.CORS_ORIGIN || [];
+    if (origin && !allowedOrigins.includes(origin) && config.NODE_ENV === 'production') {
+      return res.status(403).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Invalid origin'
+        }
+      });
+    }
+
+    // Extract or generate session ID from Mcp-Session-Id header
     let sessionId = req.headers['mcp-session-id'] as string;
     
     if (!sessionId) {
@@ -132,68 +276,125 @@ app.all('/mcp', [
       }
     }
     
-    // Set session ID in response header
+    // Set required headers for HTTP Streamable transport
     res.header('Mcp-Session-Id', sessionId);
     res.header('Content-Type', 'application/json');
     
     // Update session activity
     sessionManager.updateActivity(sessionId);
     
-    // Handle different HTTP methods
-    if (req.method === 'POST') {
-      // Handle MCP request
-      logMCPRequest(logger, req, sessionId);
-      
-      if (!hubspotBCPServer) {
-        throw new Error('MCP server not initialized');
-      }
-      
-      // Connect the session transport if not already connected
-      if (!session.transport) {
-        // For now, skip transport creation as we need proper integration
-        // session.transport = new SSEServerTransport('/mcp', res);
-        await hubspotBCPServer.getServer().connect(session.transport);
-      }
-      
-      // Process the MCP request - For now, return a simple response
-      // TODO: Implement proper SSE transport integration
-      const mcpResponse = {
-        jsonrpc: '2.0',
-        id: req.body?.id || null,
-        result: { message: 'MCP endpoint active' }
-      };
-      
-      const duration = Date.now() - startTime;
-      logMCPResponse(logger, req, mcpResponse, sessionId, duration);
-      
-      // Update session state
-      if (session) {
-      session.state = 'active' as any;
+    // Log the MCP request
+    logMCPRequest(logger, req, sessionId);
+    
+    if (!hubspotBCPServer) {
+      throw new Error('MCP server not initialized');
     }
-      
-      res.json(mcpResponse);
-    } else if (req.method === 'GET') {
-      // Handle Server-Sent Events for notifications
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Cache-Control'
-      });
-      
-      // For now, send a simple SSE response
-      res.write('data: {"type": "notification", "message": "Connected"}\n\n');
-      res.write('data: {"type": "heartbeat", "timestamp": "' + new Date().toISOString() + '"}\n\n');
-    } else {
-      res.status(405).json({
+    
+    // Process JSON-RPC message directly (HTTP Streamable transport)
+    const jsonrpcMessage = req.body;
+    
+    // Validate JSON-RPC format
+    if (!jsonrpcMessage || typeof jsonrpcMessage !== 'object') {
+      return res.status(400).json({
         jsonrpc: '2.0',
         error: {
-          code: -32601,
-          message: 'Method not allowed'
+          code: -32600,
+          message: 'Invalid JSON-RPC request'
         }
       });
     }
+    
+    // Handle the MCP request through the BCP server with HTTP Streamable transport
+    let mcpResponse;
+    try {
+      const server = hubspotBCPServer.getServer();
+      
+      // For HTTP Streamable, we process JSON-RPC messages directly
+      // Handle different MCP methods
+      if (jsonrpcMessage.method === 'initialize') {
+        // Handle initialization request
+        const { params } = jsonrpcMessage;
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id,
+          result: {
+            protocolVersion: '2025-03-26',
+            capabilities: {
+              tools: {},
+              prompts: {},
+              resources: {},
+              logging: {}
+            },
+            serverInfo: {
+              name: 'hubspot-mcp',
+              version: '0.1.0'
+            },
+            instructions: 'HubSpot MCP server initialized successfully. Use tools/list to see available tools.'
+          }
+        };
+      } else if (jsonrpcMessage.method === 'ping') {
+        // Handle ping
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id,
+          result: {}
+        };
+      } else if (jsonrpcMessage.method === 'tools/list') {
+        // Get available tools - this will be handled by the server's request handler
+        // For now, return a placeholder response indicating tools are available
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id,
+          result: {
+            tools: []
+          }
+        };
+      } else if (jsonrpcMessage.method === 'tools/call') {
+        // Call a specific tool - this will be handled by the server's request handler
+        // For now, return a placeholder response
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id,
+          error: {
+            code: -32601,
+            message: 'Tool calling not yet implemented in HTTP Streamable transport'
+          }
+        };
+      } else {
+        // Method not found
+        mcpResponse = {
+          jsonrpc: '2.0',
+          id: jsonrpcMessage.id || null,
+          error: {
+            code: -32601,
+            message: `Method not found: ${jsonrpcMessage.method}`
+          }
+        };
+      }
+      
+    } catch (requestError) {
+      logger.error({ error: requestError, sessionId }, 'Error processing MCP request');
+      mcpResponse = {
+        jsonrpc: '2.0',
+        id: jsonrpcMessage.id || null,
+        error: {
+          code: -32603,
+          message: 'Internal error processing request',
+          data: requestError instanceof Error ? requestError.message : String(requestError)
+        }
+      };
+    }
+    
+    const duration = Date.now() - startTime;
+    logMCPResponse(logger, req, mcpResponse, sessionId, duration);
+    
+    // Update session state
+    if (session) {
+      session.state = 'active' as any;
+    }
+      
+    res.json(mcpResponse);
+    
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -226,32 +427,30 @@ app.all('/mcp', [
   }
 });
 
-// Development endpoint to get a test token
+// Development endpoint for OAuth testing
 if (isDevelopment(config)) {
-  app.get('/dev/token', (req, res) => {
-    if (!config.JWT_SECRET) {
-      return res.status(500).json({ error: 'JWT_SECRET not configured' });
+  app.get('/dev/oauth', (req, res) => {
+    if (!oauthService) {
+      return res.status(500).json({ error: 'OAuth service not initialized' });
     }
     
-    const token = createDevelopmentToken({
-      userId: req.query.userId as string || 'dev-user',
-      permissions: [
-        MCPPermissions.MCP_CALL_TOOLS,
-        MCPPermissions.HUBSPOT_READ,
-        MCPPermissions.HUBSPOT_WRITE,
-        MCPPermissions.COMPANIES_READ,
-        MCPPermissions.COMPANIES_WRITE,
-        MCPPermissions.CONTACTS_READ,
-        MCPPermissions.CONTACTS_WRITE,
-        MCPPermissions.DEALS_READ,
-        MCPPermissions.DEALS_WRITE
-      ]
-    }, config.JWT_SECRET);
+    const serverUrl = process.env.BASE_URL || `http://${config.HOST}:${config.PORT}`;
     
     res.json({
-      token,
-      usage: 'Include this token in the Authorization header as "Bearer <token>"',
-      example: `curl -H "Authorization: Bearer ${token}" -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' http://localhost:${config.PORT}/mcp`
+      message: 'OAuth 2.1 with Dynamic Client Registration is available',
+      instructions: 'Follow the OAuth flow to get access tokens',
+      endpoints: {
+        discovery: `${serverUrl}/.well-known/oauth-authorization-server`,
+        register: `${serverUrl}/register`,
+        authorize: `${serverUrl}/authorize`,
+        token: `${serverUrl}/token`
+      },
+      example_flow: [
+        '1. POST /register to register a client',
+        '2. GET /authorize to get authorization code',
+        '3. POST /token to exchange code for access token',
+        '4. Use token: Authorization: Bearer <access_token>'
+      ]
     });
   });
 }
@@ -304,6 +503,14 @@ app.use((error: Error, req: express.Request, res: express.Response, next: expres
 async function initializeServer(): Promise<void> {
   try {
     logger.info('Initializing HubSpot MCP HTTP Server...');
+    
+    // Create OAuth service
+    logger.info('Creating OAuth service...');
+    const protocol = config.NODE_ENV === 'production' ? 'https' : 'http';
+    const baseUrl = process.env.BASE_URL || `${protocol}://${config.HOST}:${config.PORT}`;
+    const issuer = process.env.OAUTH_ISSUER || baseUrl;
+    oauthService = new OAuthService(issuer, baseUrl);
+    logger.info(`OAuth service initialized with base URL: ${baseUrl}`);
     
     // Create HubSpot BCP Server
     logger.info('Creating HubSpot BCP Server...');
@@ -392,15 +599,22 @@ const server = app.listen(config.PORT, config.HOST, async () => {
       version: process.env.npm_package_version || '0.1.0'
     }, `🚀 HubSpot MCP HTTP Server running on http://${config.HOST}:${config.PORT}`);
     
+    const serverUrl = process.env.BASE_URL || `http://${config.HOST}:${config.PORT}`;
+    
     logger.info('Available endpoints:');
-    logger.info(`  • MCP Protocol: http://${config.HOST}:${config.PORT}/mcp`);
-    logger.info(`  • Health Check: http://${config.HOST}:${config.PORT}/health`);
-    logger.info(`  • Metrics: http://${config.HOST}:${config.PORT}/metrics`);
+    logger.info(`  • MCP Protocol: ${serverUrl}/mcp`);
+    logger.info(`  • Health Check: ${serverUrl}/health`);
+    logger.info(`  • Metrics: ${serverUrl}/metrics`);
+    
+    logger.info('OAuth 2.1 endpoints:');
+    logger.info(`  • Server Metadata: ${serverUrl}/.well-known/oauth-authorization-server`);
+    logger.info(`  • Client Registration: ${serverUrl}/register`);
+    logger.info(`  • Authorization: ${serverUrl}/authorize`);
+    logger.info(`  • Token: ${serverUrl}/token`);
     
     if (isDevelopment(config)) {
       logger.info('Development endpoints:');
-      logger.info(`  • Dev Token: http://${config.HOST}:${config.PORT}/dev/token`);
-      logger.info(`  • Sessions: http://${config.HOST}:${config.PORT}/dev/sessions`);
+      logger.info(`  • Sessions: ${serverUrl}/dev/sessions`);
     }
     
     // Update metrics with initial session count

@@ -30,7 +30,10 @@
       "WebFetch(domain:docs.anthropic.com)",
       "WebSearch",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "WebFetch(domain:support.anthropic.com)",
+      "Bash(curl:*)",
+      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)"
     ],
     "deny": []
   },

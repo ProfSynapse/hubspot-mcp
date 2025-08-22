@@ -28,11 +28,16 @@
         "SESSION_MAX_AGE": "1800000",
         "SESSION_CLEANUP_INTERVAL": "300000",
         "JWKS_CACHE_TTL": "3600",
-        "REDIS_SESSION_PREFIX": "mcp:session:"
+        "REDIS_SESSION_PREFIX": "mcp:session:",
+        "CLAUDE_CLIENT_NAME": "Claude MCP Client"
       },
       "secrets": [
         "HUBSPOT_ACCESS_TOKEN",
-        "JWT_SECRET"
+        "JWT_SECRET",
+        "CLAUDE_CLIENT_ID",
+        "CLAUDE_CLIENT_SECRET",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET"
       ]
     },
     "staging": {
@@ -50,11 +55,16 @@
         "SESSION_MAX_AGE": "3600000",
         "SESSION_CLEANUP_INTERVAL": "300000",
         "JWKS_CACHE_TTL": "3600",
-        "REDIS_SESSION_PREFIX": "mcp:session:"
+        "REDIS_SESSION_PREFIX": "mcp:session:",
+        "CLAUDE_CLIENT_NAME": "Claude MCP Client (Staging)"
       },
       "secrets": [
         "HUBSPOT_ACCESS_TOKEN",
-        "JWT_SECRET"
+        "JWT_SECRET",
+        "CLAUDE_CLIENT_ID",
+        "CLAUDE_CLIENT_SECRET",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET"
       ]
     }
   }
