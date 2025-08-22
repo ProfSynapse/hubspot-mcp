@@ -1,52 +1,52 @@
-# Multi-stage build for optimal production image
-FROM node:18-alpine AS base
-RUN apk add --no-cache libc6-compat
+# Use the official Node.js runtime as base image
+FROM node:18-alpine
+
+# Set working directory
 WORKDIR /app
 
-# Dependencies stage
-FROM base AS deps
-COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+# Install system dependencies
+RUN apk add --no-cache libc6-compat
 
-# Builder stage
-FROM base AS builder
+# Copy package files
 COPY package*.json ./
+
+# Install all dependencies (including devDependencies for build)
 RUN npm ci
+
+# Copy source code
 COPY . .
+
+# Build the TypeScript project
 RUN npm run build
 
-# Runtime stage
-FROM base AS runner
-WORKDIR /app
+# Remove devDependencies to reduce image size
+RUN npm ci --only=production && npm cache clean --force
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 mcpuser
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 mcpuser && \
+    chown -R mcpuser:nodejs /app
 
-# Copy built application
-COPY --from=deps --chown=mcpuser:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=mcpuser:nodejs /app/build ./build
-COPY --from=builder --chown=mcpuser:nodejs /app/package*.json ./
-
+# Switch to non-root user
 USER mcpuser
 
-# Expose port
+# Expose the port the app runs on
 EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { \
-    let body = ''; \
-    res.on('data', chunk => body += chunk); \
-    res.on('end', () => { \
-      try { \
-        const health = JSON.parse(body); \
-        process.exit(health.status === 'healthy' ? 0 : 1); \
-      } catch (e) { \
-        process.exit(1); \
-      } \
-    }); \
-  }).on('error', () => process.exit(1))"
+    CMD node -e "require('http').get('http://localhost:3000/health', (res) => { \
+        let body = ''; \
+        res.on('data', chunk => body += chunk); \
+        res.on('end', () => { \
+            try { \
+                const health = JSON.parse(body); \
+                process.exit(health.status === 'healthy' ? 0 : 1); \
+            } catch (e) { \
+                process.exit(1); \
+            } \
+        }); \
+    }).on('error', () => process.exit(1))"
 
-# Start command
+# Start the application
 CMD ["npm", "start"]

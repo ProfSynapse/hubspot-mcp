@@ -29,7 +29,8 @@
       "Bash(source:*)",
       "WebFetch(domain:docs.anthropic.com)",
       "WebSearch",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(docker build:*)"
     ],
     "deny": []
   },
