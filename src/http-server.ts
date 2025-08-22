@@ -348,10 +348,7 @@ app.post('/mcp', [
             capabilities: {
               tools: {
                 listChanged: true
-              },
-              prompts: {},
-              resources: {},
-              logging: {}
+              }
             },
             serverInfo: {
               name: 'hubspot-mcp',
