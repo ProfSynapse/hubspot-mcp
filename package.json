@@ -6,9 +6,11 @@
   "main": "build/index.js",
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "start": "node build/http-server.js",
+    "start": "node build/http-server-sdk.js",
+    "start:custom": "node build/http-server.js",
     "start:stdio": "node build/index.js",
-    "dev": "tsx watch src/http-server.ts",
+    "dev": "tsx watch src/http-server-sdk.ts",
+    "dev:custom": "tsx watch src/http-server.ts",
     "dev:stdio": "tsx watch src/index.ts",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:http": "jest --testPathPattern=http",
@@ -17,7 +19,7 @@
   },
   "dependencies": {
     "@hubspot/api-client": "^9.0.0",
-    "@modelcontextprotocol/sdk": "^1.9.0",
+    "@modelcontextprotocol/sdk": "^1.17.4",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
