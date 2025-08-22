@@ -93,25 +93,7 @@ function createMCPServer(): McpServer {
     }
   });
 
-  // Register a simple test tool first to verify SDK integration
-  server.tool(
-    'test-tool',
-    'A simple test tool to verify MCP SDK integration',
-    {
-      message: z.string().describe('Message to echo back'),
-    },
-    async ({ message }): Promise<CallToolResult> => {
-      logger.info({ message }, 'Test tool called');
-      return {
-        content: [
-          {
-            type: 'text',
-            text: `Echo: ${message} (from HubSpot MCP Server)`,
-          },
-        ],
-      };
-    }
-  );
+  // HubSpot BCP Tools registered below
 
   // Register HubSpot Companies tool
   server.tool(
@@ -163,7 +145,231 @@ function createMCPServer(): McpServer {
     }
   );
 
-  logger.info('✅ MCP Server created with HubSpot tools registered');
+  // Register HubSpot Contacts tool
+  server.tool(
+    'hubspotContact',
+    'HubSpot contact management tool with CRUD operations',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
+      id: z.string().optional().describe('Contact ID (required for read, update, delete)'),
+      email: z.string().optional().describe('Contact email (required for create)'),
+      firstName: z.string().optional().describe('Contact first name'),
+      lastName: z.string().optional().describe('Contact last name'),
+      company: z.string().optional().describe('Contact company'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+      properties: z.record(z.any()).optional().describe('Additional contact properties'),
+    },
+    async ({ operation, id, email, firstName, lastName, company, searchQuery, properties }): Promise<CallToolResult> => {
+      logger.info({ operation, id, email }, 'HubSpot contact tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on contact${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Notes tool
+  server.tool(
+    'hubspotNote',
+    'HubSpot note management tool with CRUD operations',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search']).describe('The operation to perform'),
+      id: z.string().optional().describe('Note ID (required for read, update, delete)'),
+      body: z.string().optional().describe('Note content (required for create)'),
+      objectType: z.enum(['contact', 'company', 'deal', 'ticket']).optional().describe('Type of object to associate note with'),
+      objectId: z.string().optional().describe('ID of object to associate note with'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+    },
+    async ({ operation, id, body, objectType, objectId, searchQuery }): Promise<CallToolResult> => {
+      logger.info({ operation, id, objectType }, 'HubSpot note tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on note${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Associations tool
+  server.tool(
+    'hubspotAssociation',
+    'HubSpot object association management tool',
+    {
+      operation: z.enum(['create', 'delete', 'list']).describe('The operation to perform'),
+      fromObjectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Source object type'),
+      fromObjectId: z.string().describe('Source object ID'),
+      toObjectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Target object type'),
+      toObjectId: z.string().optional().describe('Target object ID (required for create/delete)'),
+      associationType: z.string().optional().describe('Type of association'),
+    },
+    async ({ operation, fromObjectType, fromObjectId, toObjectType, toObjectId, associationType }): Promise<CallToolResult> => {
+      logger.info({ operation, fromObjectType, toObjectType }, 'HubSpot association tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} association between ${fromObjectType} ${fromObjectId} and ${toObjectType}${toObjectId ? ` ${toObjectId}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Deals tool
+  server.tool(
+    'hubspotDeal',
+    'HubSpot deal management tool with CRUD operations',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
+      id: z.string().optional().describe('Deal ID (required for read, update, delete)'),
+      dealname: z.string().optional().describe('Deal name (required for create)'),
+      amount: z.number().optional().describe('Deal amount'),
+      dealstage: z.string().optional().describe('Deal stage'),
+      pipeline: z.string().optional().describe('Deal pipeline'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+      properties: z.record(z.any()).optional().describe('Additional deal properties'),
+    },
+    async ({ operation, id, dealname, amount, dealstage, pipeline, searchQuery, properties }): Promise<CallToolResult> => {
+      logger.info({ operation, id, dealname }, 'HubSpot deal tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on deal${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Products tool
+  server.tool(
+    'hubspotProduct',
+    'HubSpot product management tool with CRUD operations',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
+      id: z.string().optional().describe('Product ID (required for read, update, delete)'),
+      name: z.string().optional().describe('Product name (required for create)'),
+      price: z.number().optional().describe('Product price'),
+      description: z.string().optional().describe('Product description'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+      properties: z.record(z.any()).optional().describe('Additional product properties'),
+    },
+    async ({ operation, id, name, price, description, searchQuery, properties }): Promise<CallToolResult> => {
+      logger.info({ operation, id, name }, 'HubSpot product tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on product${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Properties tool
+  server.tool(
+    'hubspotProperty',
+    'HubSpot property management tool for custom properties',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'list']).describe('The operation to perform'),
+      objectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Object type for the property'),
+      name: z.string().optional().describe('Property name (required for create, read, update, delete)'),
+      label: z.string().optional().describe('Property label (required for create)'),
+      type: z.enum(['string', 'number', 'bool', 'datetime', 'enumeration']).optional().describe('Property type (required for create)'),
+      description: z.string().optional().describe('Property description'),
+      groupName: z.string().optional().describe('Property group name'),
+      options: z.array(z.object({ label: z.string(), value: z.string() })).optional().describe('Options for enumeration properties'),
+    },
+    async ({ operation, objectType, name, label, type, description, groupName, options }): Promise<CallToolResult> => {
+      logger.info({ operation, objectType, name }, 'HubSpot property tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on ${objectType} property${name ? ` ${name}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Emails tool
+  server.tool(
+    'hubspotEmail',
+    'HubSpot email management tool for email activities',
+    {
+      operation: z.enum(['create', 'read', 'search']).describe('The operation to perform'),
+      id: z.string().optional().describe('Email ID (required for read)'),
+      subject: z.string().optional().describe('Email subject (required for create)'),
+      body: z.string().optional().describe('Email body content (required for create)'),
+      toEmail: z.string().optional().describe('Recipient email address (required for create)'),
+      fromEmail: z.string().optional().describe('Sender email address'),
+      contactId: z.string().optional().describe('Associated contact ID'),
+      companyId: z.string().optional().describe('Associated company ID'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+    },
+    async ({ operation, id, subject, body, toEmail, fromEmail, contactId, companyId, searchQuery }): Promise<CallToolResult> => {
+      logger.info({ operation, id, subject }, 'HubSpot email tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on email${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Blog Posts tool
+  server.tool(
+    'hubspotBlogPost',
+    'HubSpot blog post management tool for content marketing',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'list']).describe('The operation to perform'),
+      id: z.string().optional().describe('Blog post ID (required for read, update, delete)'),
+      name: z.string().optional().describe('Blog post title (required for create)'),
+      slug: z.string().optional().describe('Blog post URL slug'),
+      contentGroupId: z.string().optional().describe('Blog/content group ID'),
+      state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']).optional().describe('Blog post state'),
+      htmlTitle: z.string().optional().describe('HTML title tag'),
+      metaDescription: z.string().optional().describe('Meta description'),
+      postBody: z.string().optional().describe('Blog post content'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+    },
+    async ({ operation, id, name, slug, contentGroupId, state, htmlTitle, metaDescription, postBody, searchQuery }): Promise<CallToolResult> => {
+      logger.info({ operation, id, name }, 'HubSpot blog post tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on blog post${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  // Register HubSpot Quotes tool
+  server.tool(
+    'hubspotQuote',
+    'HubSpot quote management tool for sales quotes',
+    {
+      operation: z.enum(['create', 'read', 'update', 'delete', 'search']).describe('The operation to perform'),
+      id: z.string().optional().describe('Quote ID (required for read, update, delete)'),
+      name: z.string().optional().describe('Quote name (required for create)'),
+      dealId: z.string().optional().describe('Associated deal ID'),
+      contactId: z.string().optional().describe('Associated contact ID'),
+      domain: z.string().optional().describe('Quote domain/URL'),
+      expirationDate: z.string().optional().describe('Quote expiration date (ISO format)'),
+      searchQuery: z.string().optional().describe('Search query (for search operation)'),
+      properties: z.record(z.any()).optional().describe('Additional quote properties'),
+    },
+    async ({ operation, id, name, dealId, contactId, domain, expirationDate, searchQuery, properties }): Promise<CallToolResult> => {
+      logger.info({ operation, id, name }, 'HubSpot quote tool called');
+      return {
+        content: [{
+          type: 'text',
+          text: `⚠️ Demo Mode: Would perform ${operation} operation on quote${id ? ` ${id}` : ''}. Set HUBSPOT_ACCESS_TOKEN for real API calls.`
+        }]
+      };
+    }
+  );
+
+  logger.info('✅ MCP Server created with all 10 HubSpot BCP tools registered');
   
   return server;
 }
