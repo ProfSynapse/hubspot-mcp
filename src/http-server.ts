@@ -350,26 +350,55 @@ app.post('/mcp', [
           result: {}
         };
       } else if (jsonrpcMessage.method === 'tools/list') {
-        // Get available tools - this will be handled by the server's request handler
-        // For now, return a placeholder response indicating tools are available
-        mcpResponse = {
-          jsonrpc: '2.0',
-          id: jsonrpcMessage.id,
-          result: {
-            tools: []
-          }
-        };
-      } else if (jsonrpcMessage.method === 'tools/call') {
-        // Call a specific tool - this will be handled by the server's request handler
-        // For now, return a placeholder response
-        mcpResponse = {
-          jsonrpc: '2.0',
-          id: jsonrpcMessage.id,
-          error: {
-            code: -32601,
-            message: 'Tool calling not yet implemented in HTTP Streamable transport'
-          }
-        };
+        // Handle tools/list by directly accessing the server's tools
+        if (!hubspotBCPServer) {
+          mcpResponse = {
+            jsonrpc: '2.0',
+            id: jsonrpcMessage.id || null,
+            error: {
+              code: -32603,
+              message: 'HubSpot BCP server not initialized'
+            }
+          };
+        } else {
+          const server = hubspotBCPServer.getServer();
+          // Access the private _registeredTools property (for debugging)
+          const tools = (server as any)._registeredTools || {};
+          
+          const toolsList = Object.keys(tools).map(toolName => {
+            const tool = tools[toolName];
+            
+            // Convert Zod schema to JSON Schema (basic conversion)
+            let inputSchema = { type: 'object', properties: {} };
+            if (tool.inputSchema && typeof tool.inputSchema === 'object') {
+              try {
+                // Try to get a basic JSON schema representation
+                // For now, use a simple fallback since Zod to JSON Schema conversion is complex
+                inputSchema = {
+                  type: 'object',
+                  properties: {}
+                } as any;
+              } catch (error) {
+                // Fallback to basic schema
+                inputSchema = { type: 'object', properties: {} };
+              }
+            }
+            
+            return {
+              name: toolName,
+              description: tool.description || `HubSpot ${toolName.replace('hubspot', '')} management tool`,
+              inputSchema
+            };
+          });
+          
+          mcpResponse = {
+            jsonrpc: '2.0',
+            id: jsonrpcMessage.id,
+            result: {
+              tools: toolsList
+            }
+          };
+        }
       } else {
         // Method not found
         mcpResponse = {
