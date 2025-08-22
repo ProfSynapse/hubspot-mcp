@@ -173,8 +173,8 @@ export const logMCPResponse = (logger: pino.Logger, req: Request, response: any,
     sessionId,
     mcpMethod: req.body?.method,
     mcpId: req.body?.id,
-    responseSize: JSON.stringify(response).length,
-    isError: response.error ? true : false,
+    responseSize: response ? JSON.stringify(response).length : 0,
+    isError: response?.error ? true : false,
     duration,
     event: 'mcp_response'
   }, `MCP Response: ${req.body?.method || 'unknown'}`);
