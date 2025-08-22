@@ -329,20 +329,6 @@ app.post('/mcp', [
         const { params } = jsonrpcMessage;
         logger.info({ params, sessionId }, 'Processing initialize request with client capabilities');
         
-        // Get the tools list directly for the initialize response
-        const server = hubspotBCPServer.getServer();
-        const tools = (server as any)._registeredTools || {};
-        const toolsList = Object.keys(tools).map(toolName => {
-          const tool = tools[toolName];
-          return {
-            name: toolName,
-            description: tool.description || `HubSpot ${toolName.replace('hubspot', '')} management tool`,
-            inputSchema: { type: 'object', properties: {} } as any
-          };
-        });
-        
-        logger.info({ toolCount: toolsList.length, toolNames: Object.keys(tools), sessionId }, '🛠️ Including tools directly in initialize response');
-        
         const initializeResponse = {
           jsonrpc: '2.0',
           id: jsonrpcMessage.id,
@@ -350,7 +336,7 @@ app.post('/mcp', [
             protocolVersion: '2025-03-26',
             capabilities: {
               tools: {
-                listChanged: false
+                listChanged: true
               },
               prompts: {},
               resources: {},
@@ -360,13 +346,11 @@ app.post('/mcp', [
               name: 'hubspot-mcp',
               version: '0.1.0'
             },
-            instructions: 'HubSpot MCP server initialized successfully with ' + toolsList.length + ' tools.',
-            // Include tools directly in the initialize response
-            tools: toolsList
+            instructions: 'HubSpot MCP server initialized successfully. Use tools/list to discover available tools.'
           }
         };
         
-        logger.info({ capabilities: initializeResponse.result.capabilities, sessionId }, 'Sending initialize response with capabilities');
+        logger.info({ capabilities: initializeResponse.result.capabilities, sessionId }, 'Sending initialize response with tools capability enabled');
         mcpResponse = initializeResponse;
       } else if (jsonrpcMessage.method === 'ping') {
         // Handle ping

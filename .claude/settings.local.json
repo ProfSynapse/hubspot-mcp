@@ -37,7 +37,9 @@
       "Bash(NODE_ENV=production HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
       "Bash(git reset:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "WebFetch(domain:spec.modelcontextprotocol.io)"
     ],
     "deny": []
   },
