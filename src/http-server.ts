@@ -303,6 +303,9 @@ app.post('/mcp', [
     // Process JSON-RPC message directly (HTTP Streamable transport)
     const jsonrpcMessage = req.body;
     
+    // Log all incoming MCP requests for debugging
+    logger.info({ method: jsonrpcMessage.method, id: jsonrpcMessage.id, sessionId }, `📨 MCP REQUEST: ${jsonrpcMessage.method}`);
+    
     // Validate JSON-RPC format
     if (!jsonrpcMessage || typeof jsonrpcMessage !== 'object') {
       return res.status(400).json({
@@ -324,7 +327,23 @@ app.post('/mcp', [
       if (jsonrpcMessage.method === 'initialize') {
         // Handle initialization request
         const { params } = jsonrpcMessage;
-        mcpResponse = {
+        logger.info({ params, sessionId }, 'Processing initialize request with client capabilities');
+        
+        // Get the tools list directly for the initialize response
+        const server = hubspotBCPServer.getServer();
+        const tools = (server as any)._registeredTools || {};
+        const toolsList = Object.keys(tools).map(toolName => {
+          const tool = tools[toolName];
+          return {
+            name: toolName,
+            description: tool.description || `HubSpot ${toolName.replace('hubspot', '')} management tool`,
+            inputSchema: { type: 'object', properties: {} } as any
+          };
+        });
+        
+        logger.info({ toolCount: toolsList.length, toolNames: Object.keys(tools), sessionId }, '🛠️ Including tools directly in initialize response');
+        
+        const initializeResponse = {
           jsonrpc: '2.0',
           id: jsonrpcMessage.id,
           result: {
@@ -341,9 +360,14 @@ app.post('/mcp', [
               name: 'hubspot-mcp',
               version: '0.1.0'
             },
-            instructions: 'HubSpot MCP server initialized successfully. Use tools/list to see available tools.'
+            instructions: 'HubSpot MCP server initialized successfully with ' + toolsList.length + ' tools.',
+            // Include tools directly in the initialize response
+            tools: toolsList
           }
         };
+        
+        logger.info({ capabilities: initializeResponse.result.capabilities, sessionId }, 'Sending initialize response with capabilities');
+        mcpResponse = initializeResponse;
       } else if (jsonrpcMessage.method === 'ping') {
         // Handle ping
         mcpResponse = {
@@ -353,6 +377,8 @@ app.post('/mcp', [
         };
       } else if (jsonrpcMessage.method === 'tools/list') {
         // Handle tools/list by directly accessing the server's tools
+        logger.info({ sessionId }, '🔧 TOOLS/LIST REQUEST RECEIVED! Claude is requesting tool list');
+        
         if (!hubspotBCPServer) {
           mcpResponse = {
             jsonrpc: '2.0',
@@ -366,6 +392,8 @@ app.post('/mcp', [
           const server = hubspotBCPServer.getServer();
           // Access the private _registeredTools property (for debugging)
           const tools = (server as any)._registeredTools || {};
+          
+          logger.info({ toolCount: Object.keys(tools).length, toolNames: Object.keys(tools), sessionId }, '🛠️ Found registered tools in BCP server');
           
           const toolsList = Object.keys(tools).map(toolName => {
             const tool = tools[toolName];
@@ -400,6 +428,8 @@ app.post('/mcp', [
               tools: toolsList
             }
           };
+          
+          logger.info({ toolCount: toolsList.length, responseSize: JSON.stringify(mcpResponse).length, sessionId }, '📋 Sending tools/list response to Claude');
         }
       } else {
         // Method not found

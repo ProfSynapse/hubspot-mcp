@@ -34,7 +34,10 @@
       "WebFetch(domain:support.anthropic.com)",
       "Bash(curl:*)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
-      "Bash(NODE_ENV=production HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)"
+      "Bash(NODE_ENV=production HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
+      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
+      "Bash(git reset:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   },
