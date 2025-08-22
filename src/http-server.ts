@@ -364,12 +364,16 @@ app.post('/mcp', [
         logger.info({ capabilities: initializeResponse.result.capabilities, sessionId }, 'Sending initialize response with tools capability enabled');
         
         // Log the EXACT initialize response being sent to Claude Desktop
+        console.log('📤 EXACT INITIALIZE RESPONSE JSON:');
+        console.log(JSON.stringify(initializeResponse, null, 2));
+        console.log('📤 END INITIALIZE RESPONSE');
+        
         logger.info({ 
-          fullResponse: JSON.stringify(initializeResponse, null, 2), 
           responseSize: JSON.stringify(initializeResponse).length,
           toolsCapability: initializeResponse.result.capabilities.tools,
+          protocolVersion: initializeResponse.result.protocolVersion,
           sessionId 
-        }, '📤 EXACT INITIALIZE RESPONSE being sent to Claude Desktop');
+        }, '📤 INITIALIZE RESPONSE METADATA');
         
         mcpResponse = initializeResponse;
       } else if (jsonrpcMessage.method === 'ping') {
