@@ -19,7 +19,7 @@ import { OAuthService } from './oauth/oauth-service.js';
 import { createLogger, createRequestLogger, createErrorLogger, logMCPRequest, logMCPResponse, logSessionEvent } from './utils/logger.js';
 import { metricsCollector, metricsMiddleware } from './utils/metrics.js';
 import { HealthChecker, createHealthCheckHandler, railwayHealthCheck, readinessCheck, livenessCheck } from './health/health-check.js';
-import { createAuthMiddleware, createToolPermissionValidator, createDevelopmentToken, MCPPermissions, AuthenticatedRequest } from './middleware/auth.js';
+import { MCPPermissions, AuthenticatedRequest } from './middleware/auth.js';
 import { createRateLimit, createCorsMiddleware, createSecurityHeaders, validateMCPRequest, requestSizeLimit, validateContentType, securityEventLogger } from './middleware/security.js';
 
 // Load and validate configuration

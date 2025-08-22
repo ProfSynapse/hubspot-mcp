@@ -15,12 +15,13 @@ const environmentSchema = z.object({
   PORT: z.string().transform(Number).default('3000'),
   HOST: z.string().default('0.0.0.0'),
   
-  // Authentication
-  JWT_SECRET: z.string().min(32).optional(),
-  JWT_ISSUER: z.string().url().optional(),
-  JWT_AUDIENCE: z.string().optional(),
-  JWKS_URI: z.string().url().optional(),
-  JWKS_CACHE_TTL: z.string().transform(Number).default('3600'),
+  // OAuth 2.1 Configuration
+  OAUTH_CLIENT_ID: z.string().optional(),
+  OAUTH_CLIENT_SECRET: z.string().optional(),
+  OAUTH_CLIENT_NAME: z.string().optional(),
+  CLAUDE_CLIENT_ID: z.string().optional(),
+  CLAUDE_CLIENT_SECRET: z.string().optional(),
+  CLAUDE_CLIENT_NAME: z.string().optional(),
   
   // HubSpot Configuration
   HUBSPOT_ACCESS_TOKEN: z.string().min(20),
@@ -75,10 +76,6 @@ export const validateConfiguration = (config: EnvironmentConfig): void => {
   
   // Production-specific validations
   if (config.NODE_ENV === 'production') {
-    if (!config.JWT_SECRET || config.JWT_SECRET.length < 32) {
-      issues.push('JWT_SECRET must be at least 32 characters in production');
-    }
-    
     if (config.CORS_ORIGIN.includes('*')) {
       issues.push('CORS_ORIGIN should not include wildcards in production');
     }
