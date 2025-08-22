@@ -90,7 +90,8 @@ if (config.METRICS_ENABLED) {
   });
 }
 
-// OAuth 2.1 Endpoints (RFC8414 - OAuth 2.0 Authorization Server Metadata)
+// OAuth 2.1 Endpoints (commented out for testing)
+/*
 app.get('/.well-known/oauth-authorization-server', (req, res) => {
   if (!oauthService) {
     return res.status(500).json({ error: 'OAuth service not initialized' });
@@ -167,8 +168,10 @@ app.post('/token', async (req, res) => {
     });
   }
 });
+*/
 
-// OAuth Bearer Token Validation Middleware
+// OAuth Bearer Token Validation Middleware (commented out for testing)
+/*
 const oauthAuthMiddleware = (req: any, res: express.Response, next: express.NextFunction) => {
   // In development, allow unauthenticated access for testing
   if (isDevelopment(config) && !req.headers.authorization) {
@@ -228,11 +231,12 @@ const oauthAuthMiddleware = (req: any, res: express.Response, next: express.Next
 
   next();
 };
+*/
 
 // HTTP Streamable MCP endpoint (single endpoint for all communication)
 app.post('/mcp', [
   validateMCPRequest,
-  oauthAuthMiddleware
+  // oauthAuthMiddleware  // Commented out for testing - uncomment to enable OAuth
 ], async (req: any, res: express.Response) => {
   const startTime = Date.now();
   let session: SessionContext | null = null;
@@ -251,28 +255,34 @@ app.post('/mcp', [
       });
     }
 
+    // Provide default auth context for testing when OAuth is disabled
+    const authContext = req.auth || { 
+      userId: 'test-user', 
+      permissions: ['mcp:read', 'mcp:write', 'hubspot:read', 'hubspot:write'] 
+    };
+
     // Extract or generate session ID from Mcp-Session-Id header
     let sessionId = req.headers['mcp-session-id'] as string;
     
     if (!sessionId) {
       // Create new session
-      session = sessionManager.createSession(req.auth, {
+      session = sessionManager.createSession(authContext, {
         userAgent: req.headers['user-agent'],
         clientIP: req.ip
       });
       sessionId = session.id;
-      logSessionEvent(logger, 'created', sessionId, { userId: req.auth?.userId });
+      logSessionEvent(logger, 'created', sessionId, { userId: authContext?.userId });
     } else {
       // Get existing session
       session = sessionManager.getSession(sessionId);
       if (!session) {
         // Session expired or invalid, create new one
-        session = sessionManager.createSession(req.auth, {
+        session = sessionManager.createSession(authContext, {
           userAgent: req.headers['user-agent'],
           clientIP: req.ip
         });
         sessionId = session.id;
-        logSessionEvent(logger, 'recreated', sessionId, { userId: req.auth?.userId, reason: 'expired' });
+        logSessionEvent(logger, 'recreated', sessionId, { userId: authContext?.userId, reason: 'expired' });
       }
     }
     
@@ -427,7 +437,8 @@ app.post('/mcp', [
   }
 });
 
-// Development endpoint for OAuth testing
+// Development endpoint for OAuth testing (commented out for testing)
+/*
 if (isDevelopment(config)) {
   app.get('/dev/oauth', (req, res) => {
     if (!oauthService) {
@@ -454,6 +465,7 @@ if (isDevelopment(config)) {
     });
   });
 }
+*/
 
 // Session management endpoint (for debugging)
 if (isDevelopment(config)) {
@@ -504,7 +516,8 @@ async function initializeServer(): Promise<void> {
   try {
     logger.info('Initializing HubSpot MCP HTTP Server...');
     
-    // Create OAuth service
+    // Create OAuth service (commented out for testing)
+    /*
     logger.info('Creating OAuth service...');
     const protocol = config.NODE_ENV === 'production' ? 'https' : 'http';
     
@@ -530,6 +543,7 @@ async function initializeServer(): Promise<void> {
     const issuer = process.env.OAUTH_ISSUER || baseUrl;
     oauthService = new OAuthService(issuer, baseUrl);
     logger.info(`OAuth service initialized with base URL: ${baseUrl}`);
+    */
     
     // Create HubSpot BCP Server
     logger.info('Creating HubSpot BCP Server...');
@@ -625,11 +639,14 @@ const server = app.listen(config.PORT, config.HOST, async () => {
     logger.info(`  • Health Check: ${serverUrl}/health`);
     logger.info(`  • Metrics: ${serverUrl}/metrics`);
     
+    // OAuth endpoints (commented out for testing)
+    /*
     logger.info('OAuth 2.1 endpoints:');
     logger.info(`  • Server Metadata: ${serverUrl}/.well-known/oauth-authorization-server`);
     logger.info(`  • Client Registration: ${serverUrl}/register`);
     logger.info(`  • Authorization: ${serverUrl}/authorize`);
     logger.info(`  • Token: ${serverUrl}/token`);
+    */
     
     if (isDevelopment(config)) {
       logger.info('Development endpoints:');
