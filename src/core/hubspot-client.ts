@@ -272,14 +272,19 @@ export class HubspotApiClient {
    */
   async getRecentCompanies(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.companies.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.companies.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['name', 'domain', 'website', 'industry', 'description'],
-        false
-      );
+        properties: ['name', 'domain', 'website']
+      });
       
       return this.formatResponse(response.results.map(company => ({
         id: company.id,
@@ -991,14 +996,19 @@ export class HubspotApiClient {
    */
   async getRecentProducts(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.products.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.products.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['name', 'price', 'description'],
-        false
-      );
+        properties: ['name', 'price', 'description']
+      });
       
       return this.formatResponse(response.results.map(product => ({
         id: product.id,
@@ -1554,14 +1564,19 @@ export class HubspotApiClient {
    */
   async getRecentDeals(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.deals.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.deals.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['dealname', 'amount', 'closedate', 'dealstage', 'pipeline', 'description'],
-        false
-      );
+        properties: ['dealname', 'amount', 'closedate', 'dealstage']
+      });
       
       return this.formatResponse(response.results.map(deal => ({
         id: deal.id,
