@@ -204,12 +204,9 @@ export class BcpToolDelegator implements BcpDelegator {
         // Associations likely uses descriptive names
         batchCreate: 'batchCreate',
         batchCreateDefault: 'batchCreateDefault',
-        batchDelete: 'batchDelete',
         batchRead: 'batchRead',
         create: 'create',
         createDefault: 'createDefault',
-        delete: 'delete',
-        deleteLabels: 'deleteLabels',
         getAssociationTypeReference: 'getAssociationTypeReference',
         getAssociationTypes: 'getAssociationTypes'
       },
@@ -221,12 +218,10 @@ export class BcpToolDelegator implements BcpDelegator {
         get: 'getProperty',
         create: 'createProperty',
         update: 'updateProperty',
-        delete: 'deleteProperty',
         listGroups: 'listPropertyGroups',
         getGroup: 'getPropertyGroup',
         createGroup: 'createPropertyGroup',
-        updateGroup: 'updatePropertyGroup',
-        deleteGroup: 'deletePropertyGroup'
+        updateGroup: 'updatePropertyGroup'
       },
       Emails: {
         // Emails may use descriptive names - need to map

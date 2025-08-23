@@ -33,11 +33,11 @@ interface DomainToolConfig {
 export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
   private static readonly DOMAIN_CONFIGS: Record<string, DomainConfig> = {
     Companies: {
-      operations: ['create', 'get', 'update', 'delete', 'search', 'recent'],
+      operations: ['create', 'get', 'update', 'search', 'recent'],
       description: 'HubSpot company management with CRUD operations and search capabilities'
     },
     Contacts: {
-      operations: ['create', 'get', 'update', 'delete', 'search', 'recent'],
+      operations: ['create', 'get', 'update', 'search', 'recent'],
       description: 'HubSpot contact management with CRUD operations and search capabilities'
     },
     Notes: {
@@ -45,11 +45,11 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       description: 'Unified Notes tool for creating and managing notes with automatic associations'
     },
     Associations: {
-      operations: ['create', 'createDefault', 'delete', 'list', 'batchCreate', 'batchCreateDefault', 'batchDelete', 'batchRead', 'deleteLabels', 'getAssociationTypes', 'getAssociationTypeReference'],
+      operations: ['create', 'createDefault', 'list', 'batchCreate', 'batchCreateDefault', 'batchRead', 'getAssociationTypes', 'getAssociationTypeReference'],
       description: 'HubSpot object association management with batch operations'
     },
     Deals: {
-      operations: ['create', 'get', 'update', 'delete', 'search', 'recent', 'batchCreate', 'batchUpdate'],
+      operations: ['create', 'get', 'update', 'search', 'recent', 'batchCreate', 'batchUpdate'],
       description: 'HubSpot deal management with CRUD operations, search, and batch processing'
     },
     Products: {
@@ -57,19 +57,19 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       description: 'HubSpot product catalog management with search and retrieval'
     },
     Properties: {
-      operations: ['list', 'get', 'create', 'update', 'delete', 'listGroups', 'getGroup', 'createGroup', 'updateGroup', 'deleteGroup'],
+      operations: ['list', 'get', 'create', 'update', 'listGroups', 'getGroup', 'createGroup', 'updateGroup'],
       description: 'HubSpot custom property management with groups and field definitions'
     },
     Emails: {
-      operations: ['create', 'get', 'update', 'delete', 'list', 'recent'],
+      operations: ['create', 'get', 'update', 'list', 'recent'],
       description: 'HubSpot email management for marketing campaigns and communications'
     },
     BlogPosts: {
-      operations: ['create', 'get', 'update', 'delete', 'recent', 'list'],
+      operations: ['create', 'get', 'update', 'recent', 'list'],
       description: 'HubSpot blog post management for content marketing'
     },
     Quotes: {
-      operations: ['create', 'get', 'update', 'delete', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem'],
+      operations: ['create', 'get', 'update', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem'],
       description: 'HubSpot quote management with line items and pricing'
     }
   };
@@ -102,7 +102,7 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
   private getDomainSpecificParams(domain: string): Record<string, z.ZodType<any>> {
     // Common parameters used across domains
     const commonParams = {
-      id: z.string().optional().describe('Object ID (required for get, update, delete operations)'),
+      id: z.string().optional().describe('Object ID (required for get and update operations)'),
       limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
       properties: z.record(z.any()).optional().describe('Additional object properties')
     };

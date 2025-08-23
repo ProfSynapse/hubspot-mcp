@@ -183,18 +183,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a company
-   * 
-   * @param id - Company ID
-   */
-  async deleteCompany(id: string): Promise<void> {
-    try {
-      await this.client.crm.companies.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteCompany');
-    }
-  }
 
   /**
    * Search companies by domain
@@ -370,18 +358,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a contact
-   * 
-   * @param id - Contact ID
-   */
-  async deleteContact(id: string): Promise<void> {
-    try {
-      await this.client.crm.contacts.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteContact');
-    }
-  }
 
   /**
    * Search contacts by email
@@ -662,35 +638,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a blog post
-   * 
-   * @param id - Blog post ID
-   */
-  async deleteBlogPost(id: string): Promise<void> {
-    try {
-      // Use fetch directly to delete a blog post
-      const accessToken = this.getAccessToken();
-      
-      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}`;
-      
-      const headers = {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      };
-      
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete blog post: ${response.statusText}`);
-      }
-    } catch (error) {
-      this.handleApiError(error, 'deleteBlogPost');
-    }
-  }
 
 
   /**
@@ -834,18 +781,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a note
-   * 
-   * @param id - Note ID
-   */
-  async deleteNote(id: string): Promise<void> {
-    try {
-      await this.client.crm.objects.basicApi.archive('notes', id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteNote');
-    }
-  }
 
   /**
    * Search notes
@@ -941,18 +876,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a product
-   * 
-   * @param id - Product ID
-   */
-  async deleteProduct(id: string): Promise<void> {
-    try {
-      await this.client.crm.products.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteProduct');
-    }
-  }
 
   /**
    * Search products
@@ -1177,18 +1100,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a quote
-   * 
-   * @param id - Quote ID
-   */
-  async deleteQuote(id: string): Promise<void> {
-    try {
-      await this.client.crm.quotes.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteQuote');
-    }
-  }
 
   /**
    * Search quotes
@@ -1258,29 +1169,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete an association between two objects
-   * 
-   * @param fromObjectType - Source object type
-   * @param fromObjectId - Source object ID
-   * @param toObjectType - Target object type
-   * @param toObjectId - Target object ID
-   */
-  async deleteAssociation(
-    fromObjectType: string,
-    fromObjectId: string,
-    toObjectType: string,
-    toObjectId: string
-  ): Promise<void> {
-    try {
-      await this.client.apiRequest({
-        method: 'DELETE',
-        path: `/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/${toObjectType}/${toObjectId}`
-      });
-    } catch (error) {
-      this.handleApiError(error, 'deleteAssociation');
-    }
-  }
 
   /**
    * List associations for an object
@@ -1362,19 +1250,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete property
-   * 
-   * @param objectType - Object type
-   * @param propertyName - Property name
-   */
-  async deleteProperty(objectType: string, propertyName: string): Promise<void> {
-    try {
-      await this.client.crm.properties.coreApi.archive(objectType, propertyName);
-    } catch (error) {
-      this.handleApiError(error, 'deleteProperty');
-    }
-  }
 
   /**
    * List properties for an object type
@@ -1464,18 +1339,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a deal
-   * 
-   * @param id - Deal ID
-   */
-  async deleteDeal(id: string): Promise<void> {
-    try {
-      await this.client.crm.deals.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteDeal');
-    }
-  }
 
   /**
    * Search deals

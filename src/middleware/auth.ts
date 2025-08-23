@@ -41,7 +41,6 @@ export enum MCPPermissions {
   // HubSpot specific permissions
   HUBSPOT_READ = 'hubspot:read',
   HUBSPOT_WRITE = 'hubspot:write',
-  HUBSPOT_DELETE = 'hubspot:delete',
   
   // Domain-specific permissions
   COMPANIES_READ = 'companies:read',
@@ -149,7 +148,6 @@ class PermissionValidator {
   constructor() {
     // Define permission implications
     this.permissionHierarchy.set(MCPPermissions.HUBSPOT_WRITE, [MCPPermissions.HUBSPOT_READ]);
-    this.permissionHierarchy.set(MCPPermissions.HUBSPOT_DELETE, [MCPPermissions.HUBSPOT_READ, MCPPermissions.HUBSPOT_WRITE]);
     this.permissionHierarchy.set(MCPPermissions.COMPANIES_WRITE, [MCPPermissions.COMPANIES_READ, MCPPermissions.HUBSPOT_READ]);
     this.permissionHierarchy.set(MCPPermissions.CONTACTS_WRITE, [MCPPermissions.CONTACTS_READ, MCPPermissions.HUBSPOT_READ]);
     this.permissionHierarchy.set(MCPPermissions.DEALS_WRITE, [MCPPermissions.DEALS_READ, MCPPermissions.HUBSPOT_READ]);
@@ -178,24 +176,21 @@ class PermissionValidator {
         'search': MCPPermissions.COMPANIES_READ,
         'recent': MCPPermissions.COMPANIES_READ,
         'create': MCPPermissions.COMPANIES_WRITE,
-        'update': MCPPermissions.COMPANIES_WRITE,
-        'delete': MCPPermissions.HUBSPOT_DELETE
+        'update': MCPPermissions.COMPANIES_WRITE
       },
       'hubspotContact': {
         'get': MCPPermissions.CONTACTS_READ,
         'search': MCPPermissions.CONTACTS_READ,
         'recent': MCPPermissions.CONTACTS_READ,
         'create': MCPPermissions.CONTACTS_WRITE,
-        'update': MCPPermissions.CONTACTS_WRITE,
-        'delete': MCPPermissions.HUBSPOT_DELETE
+        'update': MCPPermissions.CONTACTS_WRITE
       },
       'hubspotDeal': {
         'get': MCPPermissions.DEALS_READ,
         'search': MCPPermissions.DEALS_READ,
         'recent': MCPPermissions.DEALS_READ,
         'create': MCPPermissions.DEALS_WRITE,
-        'update': MCPPermissions.DEALS_WRITE,
-        'delete': MCPPermissions.HUBSPOT_DELETE
+        'update': MCPPermissions.DEALS_WRITE
       }
     };
     

@@ -57,14 +57,14 @@ async function main(): Promise<void> {
     // Use stderr for logging to avoid interfering with the JSON-RPC protocol
     console.error('HubSpot DXT Extension is running');
     console.error('Available tools:');
-    console.error('- hubspotCompany: Company operations (create, get, update, delete, search, recent)');
-    console.error('- hubspotContact: Contact operations (create, get, update, delete, search, recent)');
-    console.error('- hubspotDeal: Deal operations (create, get, update, delete, search, recent, batch)');
-    console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent, associations)');
-    console.error('- hubspotBlogPost: Blog post operations (create, get, update, delete, list, recent)');
-    console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent, line items)');
+    console.error('- hubspotCompany: Company operations (create, get, update, search, recent)');
+    console.error('- hubspotContact: Contact operations (create, get, update, search, recent)');
+    console.error('- hubspotDeal: Deal operations (create, get, update, search, recent, batch)');
+    console.error('- hubspotNote: Note operations (create, get, update, list, recent, associations)');
+    console.error('- hubspotBlogPost: Blog post operations (create, get, update, list, recent)');
+    console.error('- hubspotQuote: Quote operations (create, get, update, search, recent, line items)');
     console.error('- hubspotProduct: Product operations (get, list, search)');
-    console.error('- hubspotAssociation: Association operations (create, read, delete relationships)');
+    console.error('- hubspotAssociation: Association operations (create, read relationships)');
     
     // Handle process termination
     process.on('SIGINT', () => {
