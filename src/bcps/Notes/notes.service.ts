@@ -666,4 +666,159 @@ export class NotesService extends HubspotBaseService {
        }
      }
    }
+
+  // ===== UNIFIED NOTES TOOL METHODS =====
+  // Intent-based methods for the unified Notes tool architecture
+
+  /**
+   * Creates a note directly associated with a contact
+   */
+  public async createContactNote(
+    contactId: string, 
+    content: string, 
+    options: CreateNoteOptions = {}
+  ): Promise<Note> {
+    this.checkInitialized();
+    
+    const noteInput: NoteCreateInput = {
+      content,
+      timestamp: options.timestamp,
+      ownerId: options.ownerId,
+      metadata: options.metadata,
+      associations: [{
+        objectType: 'contacts',
+        objectId: contactId,
+        associationType: 'default'
+      }]
+    };
+
+    return this.createNote(noteInput);
+  }
+
+  /**
+   * Creates a note directly associated with a company
+   */
+  public async createCompanyNote(
+    companyId: string, 
+    content: string, 
+    options: CreateNoteOptions = {}
+  ): Promise<Note> {
+    this.checkInitialized();
+    
+    const noteInput: NoteCreateInput = {
+      content,
+      timestamp: options.timestamp,
+      ownerId: options.ownerId,
+      metadata: options.metadata,
+      associations: [{
+        objectType: 'companies',
+        objectId: companyId,
+        associationType: 'default'
+      }]
+    };
+
+    return this.createNote(noteInput);
+  }
+
+  /**
+   * Creates a note directly associated with a deal
+   */
+  public async createDealNote(
+    dealId: string, 
+    content: string, 
+    options: CreateNoteOptions = {}
+  ): Promise<Note> {
+    this.checkInitialized();
+    
+    const noteInput: NoteCreateInput = {
+      content,
+      timestamp: options.timestamp,
+      ownerId: options.ownerId,
+      metadata: options.metadata,
+      associations: [{
+        objectType: 'deals',
+        objectId: dealId,
+        associationType: 'default'
+      }]
+    };
+
+    return this.createNote(noteInput);
+  }
+
+  /**
+   * Lists notes associated with a specific contact
+   */
+  public async listContactNotes(
+    contactId: string, 
+    options: ListNotesOptions = {}
+  ): Promise<NotesPage> {
+    this.checkInitialized();
+    
+    const filters: NoteFilters = {
+      associatedObjectType: 'contacts',
+      associatedObjectId: contactId,
+      limit: options.limit || 10,
+      after: options.after,
+      startTimestamp: options.startDate,
+      endTimestamp: options.endDate
+    };
+
+    return this.listNotes(filters, true);
+  }
+
+  /**
+   * Lists notes associated with a specific company
+   */
+  public async listCompanyNotes(
+    companyId: string, 
+    options: ListNotesOptions = {}
+  ): Promise<NotesPage> {
+    this.checkInitialized();
+    
+    const filters: NoteFilters = {
+      associatedObjectType: 'companies',
+      associatedObjectId: companyId,
+      limit: options.limit || 10,
+      after: options.after,
+      startTimestamp: options.startDate,
+      endTimestamp: options.endDate
+    };
+
+    return this.listNotes(filters, true);
+  }
+
+  /**
+   * Lists notes associated with a specific deal
+   */
+  public async listDealNotes(
+    dealId: string, 
+    options: ListNotesOptions = {}
+  ): Promise<NotesPage> {
+    this.checkInitialized();
+    
+    const filters: NoteFilters = {
+      associatedObjectType: 'deals',
+      associatedObjectId: dealId,
+      limit: options.limit || 10,
+      after: options.after,
+      startTimestamp: options.startDate,
+      endTimestamp: options.endDate
+    };
+
+    return this.listNotes(filters, true);
+  }
+}
+
+// Helper types for unified Notes tool
+export interface CreateNoteOptions {
+  ownerId?: string;
+  timestamp?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ListNotesOptions {
+  limit?: number;
+  after?: string;
+  startDate?: string;
+  endDate?: string;
 }

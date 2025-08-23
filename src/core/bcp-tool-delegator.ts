@@ -179,16 +179,15 @@ export class BcpToolDelegator implements BcpDelegator {
   private mapOperationToToolName(domain: string, operation: string): string | null {
     const operationMappings: Record<string, Record<string, string>> = {
       Notes: {
-        recent: 'getRecentNotes',
-        list: 'listNotes',
-        create: 'createNote',
-        get: 'getNote',
-        update: 'updateNote',
-        delete: 'deleteNote',
-        addAssociation: 'addAssociationToNote',
-        removeAssociation: 'removeAssociationFromNote',
-        listAssociations: 'listNoteAssociations',
-        createWithAssociations: 'createNoteWithAssociations'
+        // Unified Notes operations - map to single unified tool
+        createContactNote: 'hubspotNotes',
+        createCompanyNote: 'hubspotNotes',
+        createDealNote: 'hubspotNotes',
+        listContactNotes: 'hubspotNotes',
+        listCompanyNotes: 'hubspotNotes',
+        listDealNotes: 'hubspotNotes',
+        get: 'hubspotNotes',
+        update: 'hubspotNotes'
       },
       Companies: {
         // Companies uses simple operation names that match directly

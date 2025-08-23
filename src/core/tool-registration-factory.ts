@@ -41,8 +41,8 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       description: 'HubSpot contact management with CRUD operations and search capabilities'
     },
     Notes: {
-      operations: ['create', 'get', 'update', 'delete', 'list', 'recent', 'addAssociation', 'removeAssociation', 'listAssociations', 'createWithAssociations'],
-      description: 'HubSpot note management with associations and content operations'
+      operations: ['createContactNote', 'createCompanyNote', 'createDealNote', 'listContactNotes', 'listCompanyNotes', 'listDealNotes', 'get', 'update'],
+      description: 'Unified Notes tool for creating and managing notes with automatic associations'
     },
     Associations: {
       operations: ['create', 'createDefault', 'delete', 'list', 'batchCreate', 'batchCreateDefault', 'batchDelete', 'batchRead', 'deleteLabels', 'getAssociationTypes', 'getAssociationTypeReference'],
@@ -135,18 +135,26 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       case 'Notes':
         return {
           ...commonParams,
-          content: z.string().optional().describe('Note content (required for create)'),
+          // Core note properties
+          content: z.string().optional().describe('Note content (required for create operations)'),
           ownerId: z.string().optional().describe('HubSpot owner ID'),
-          metadata: z.record(z.any()).optional().describe('Custom note properties'),
-          startTimestamp: z.string().optional().describe('Start timestamp filter (ISO 8601)'),
-          endTimestamp: z.string().optional().describe('End timestamp filter (ISO 8601)'),
-          after: z.string().optional().describe('Pagination cursor'),
+          timestamp: z.string().optional().describe('Note timestamp (ISO 8601 format)'),
+          metadata: z.record(z.any()).optional().describe('Additional custom properties'),
           
-          // Association operation parameters
-          noteId: z.string().optional().describe('Note ID for association operations'),
-          objectType: z.string().optional().describe('Type of object to associate'),
-          objectId: z.string().optional().describe('ID of object to associate'),
-          toObjectType: z.string().optional().describe('Type of object for list associations')
+          // Intent-based create operation parameters
+          contactId: z.string().optional().describe('Contact ID (required for createContactNote)'),
+          companyId: z.string().optional().describe('Company ID (required for createCompanyNote)'),
+          dealId: z.string().optional().describe('Deal ID (required for createDealNote)'),
+          
+          // List operation parameters
+          limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results (default 10, max 100)'),
+          after: z.string().optional().describe('Pagination cursor'),
+          startDate: z.string().optional().describe('Filter notes from this date (ISO 8601)'),
+          endDate: z.string().optional().describe('Filter notes to this date (ISO 8601)'),
+          
+          // Standard CRUD operation parameters
+          noteId: z.string().optional().describe('Note ID (required for get/update operations)'),
+          includeAssociations: z.boolean().optional().describe('Whether to include associations (default true)')
         };
 
       case 'Associations':

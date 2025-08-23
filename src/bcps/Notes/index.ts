@@ -1,43 +1,26 @@
 /**
- * Notes BCP Index
+ * Notes BCP Index - Updated for Unified Tool
  *
- * Exports all tools related to HubSpot Notes.
+ * Exports the unified Notes tool that replaces the complex multi-tool interface
+ * with a single, intent-driven tool following the architect's specifications.
  */
 
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as deleteTool } from './delete.tool.js';
-import { tool as listTool } from './list.tool.js';
-import { tool as recentTool } from './recent.tool.js';
-import { tool as addAssociationTool } from './addAssociation.tool.js';
-import { tool as removeAssociationTool } from './removeAssociation.tool.js';
-import { tool as listAssociationsTool } from './listAssociations.tool.js';
-import { tool as createWithAssociationsTool } from './createWithAssociations.tool.js';
+import { tool as unifiedNotesTool } from './unified-notes.tool.js';
 import { ToolDefinition } from '../../core/types.js';
 
 /**
- * Array of all Note tools
+ * Array of unified Note tools
  */
 export const noteTools: ToolDefinition[] = [
-  createTool,
-  getTool,
-  updateTool,
-  deleteTool,
-  listTool,
-  recentTool,
-  addAssociationTool,
-  removeAssociationTool,
-  listAssociationsTool,
-  createWithAssociationsTool
+  unifiedNotesTool
 ];
 
 /**
- * Notes BCP
+ * Notes BCP with simplified tool set
  */
 export const notesBCP = {
   name: 'Notes',
-  description: 'Tools for managing notes in HubSpot',
+  description: 'Unified tool for managing notes in HubSpot with automatic associations',
   tools: noteTools
 };
 
