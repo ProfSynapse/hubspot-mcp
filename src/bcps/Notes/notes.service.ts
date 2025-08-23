@@ -407,7 +407,7 @@ export class NotesService extends HubspotBaseService {
       const response = await this.client.crm.objects.searchApi.doSearch(NOTE_OBJECT_TYPE, searchRequest);
       
       return {
-        results: response.results.map(obj => this.transformHubSpotObjectToNote(obj)),
+        results: response.results.map(transformHubSpotObjectToNote),
         pagination: response.paging?.next ? { after: response.paging.next.after } : undefined,
         total: response.total || 0,
       };
