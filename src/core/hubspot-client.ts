@@ -398,7 +398,7 @@ export class HubspotApiClient {
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname', 'phone', 'company']
+        properties: ['email', 'firstname', 'lastname']
       });
       
       return this.formatResponse(response.results.map(contact => ({
@@ -454,7 +454,7 @@ export class HubspotApiClient {
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname', 'phone', 'company']
+        properties: ['email', 'firstname', 'lastname']
       });
       
       return this.formatResponse(response.results.map(contact => ({
@@ -476,14 +476,19 @@ export class HubspotApiClient {
    */
   async getRecentContacts(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.contacts.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.contacts.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['email', 'firstname', 'lastname', 'phone', 'company'],
-        false
-      );
+        properties: ['email', 'firstname', 'lastname']
+      });
       
       return this.formatResponse(response.results.map(contact => ({
         id: contact.id,
