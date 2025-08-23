@@ -563,8 +563,8 @@ export class HubspotBCPServer {
       ownerId: z.string().optional().describe('HubSpot owner ID for the note'),
       // metadata is used by create and update
       metadata: z.record(z.string().or(z.number()).or(z.boolean())).optional().describe('Custom properties for the note'),
-      // id is used by get, update, delete
-      id: z.string().optional().describe('Note ID (required for get, update, delete)'),
+      // id is used by get, update
+      id: z.string().optional().describe('Note ID (required for get, update)'),
       // Params for listNotes
       startTimestamp: z.string().optional().describe('Start timestamp for list filter (ISO 8601)'),
       endTimestamp: z.string().optional().describe('End timestamp for list filter (ISO 8601)'),
@@ -650,7 +650,7 @@ export class HubspotBCPServer {
       fromObjectId: z.string().optional().describe('The ID of the first object (for single operations)'),
       toObjectId: z.string().optional().describe('The ID of the second object (for single operations)'),
       // Parameters for batch operations
-      associations: z.array(z.any()).optional().describe('The associations to create/delete (for batch operations)'),
+      associations: z.array(z.any()).optional().describe('The associations to create (for batch operations)'),
       inputs: z.array(z.any()).optional().describe('The objects to read associations for (for batchRead)'),
       // Parameters for list operation
       objectType: z.string().optional().describe('The type of the object (for list operation)'),
@@ -660,7 +660,7 @@ export class HubspotBCPServer {
       // Parameters for association types
       associationCategory: z.string().optional().describe('The category of the association'),
       associationTypeId: z.number().optional().describe('The ID of the association type'),
-      types: z.array(z.any()).optional().describe('The types of associations to create/delete'),
+      types: z.array(z.any()).optional().describe('The types of associations to create'),
     };
 
     this.server.tool(
@@ -1313,7 +1313,7 @@ export class HubspotBCPServer {
       // Common parameters
       objectType: z.string().optional().describe('The HubSpot object type (contacts, companies, deals, tickets, etc.)'),
       // Parameters for property operations
-      propertyName: z.string().optional().describe('The name of the property (required for get, update, delete operations)'),
+      propertyName: z.string().optional().describe('The name of the property (required for get and update operations)'),
       name: z.string().optional().describe('The internal name of the property (required for create operation)'),
       label: z.string().optional().describe('The display label for the property'),
       description: z.string().optional().describe('Description of the property'),
@@ -1426,8 +1426,8 @@ export class HubspotBCPServer {
       previewText: z.string().optional().describe('Preview text for email clients'),
       folderId: z.string().optional().describe('Folder ID for organization'),
       metadata: z.record(z.any()).optional().describe('Additional custom properties'),
-      // Parameters for get/update/delete operations
-      id: z.string().optional().describe('Email ID (required for get, update, delete)'),
+      // Parameters for get/update operations
+      id: z.string().optional().describe('Email ID (required for get, update)'),
       // Parameters for update operation
       state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED']).optional().describe('Email state'),
       // Parameters for list operation

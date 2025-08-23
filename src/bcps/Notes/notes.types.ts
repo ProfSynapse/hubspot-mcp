@@ -1,11 +1,25 @@
 /**
  * Notes Types
  *
- * Type definitions for the Notes BCP.
- * These types define the structure of notes and related objects
+ * Consolidated type definitions for the Notes BCP.
+ * These types define the structure of notes, service options, and related objects
  * for use with the HubSpot Notes API, including enhanced descriptions
  * and clarity on required/optional fields.
  */
+
+// Helper types for unified Notes tool service methods
+export interface CreateNoteOptions {
+  ownerId?: string;
+  timestamp?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface ListNotesOptions {
+  limit?: number;
+  after?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
 /**
  * Represents an association between a note and another object in HubSpot.

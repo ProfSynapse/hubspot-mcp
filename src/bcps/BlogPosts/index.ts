@@ -10,7 +10,6 @@ import { BCP } from '../../core/types.js';
 import { tool as createTool } from './create.tool.js';
 import { tool as getTool } from './get.tool.js';
 import { tool as updateTool } from './update.tool.js';
-import { tool as deleteTool } from './delete.tool.js';
 import { tool as recentTool } from './recent.tool.js';
 import { tool as listTool } from './list.tool.js';
 
@@ -24,7 +23,6 @@ export const bcp: BCP = {
     createTool,
     getTool,
     updateTool,
-    deleteTool,
     recentTool,
     listTool
   ]
