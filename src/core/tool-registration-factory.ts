@@ -41,8 +41,8 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       description: 'HubSpot contact management with CRUD operations and search capabilities'
     },
     Notes: {
-      operations: ['createContactNote', 'createCompanyNote', 'createDealNote', 'listContactNotes', 'listCompanyNotes', 'listDealNotes', 'get', 'update'],
-      description: 'Unified Notes tool for creating and managing notes with automatic associations'
+      operations: ['get', 'update', 'createContactNote', 'createCompanyNote', 'createDealNote', 'listContactNotes', 'listCompanyNotes', 'listDealNotes'],
+      description: 'HubSpot notes management with CRUD operations and associations'
     },
     Associations: {
       operations: ['create', 'createDefault', 'list', 'batchCreate', 'batchCreateDefault', 'batchRead', 'getAssociationTypes', 'getAssociationTypeReference'],

@@ -84,7 +84,7 @@ export class BcpToolDelegator implements BcpDelegator {
           break;
         case 'Notes':
           const notesBcp = await import('../bcps/Notes/index.js');
-          bcp = { domain: 'Notes', description: 'Notes BCP', tools: notesBcp.noteTools };
+          bcp = notesBcp.notesBCP;
           break;
         case 'Associations':
           const assocBcp = await import('../bcps/Associations/index.js');
@@ -179,15 +179,15 @@ export class BcpToolDelegator implements BcpDelegator {
   private mapOperationToToolName(domain: string, operation: string): string | null {
     const operationMappings: Record<string, Record<string, string>> = {
       Notes: {
-        // Unified Notes operations - map to single unified tool
-        createContactNote: 'hubspotNotes',
-        createCompanyNote: 'hubspotNotes',
-        createDealNote: 'hubspotNotes',
-        listContactNotes: 'hubspotNotes',
-        listCompanyNotes: 'hubspotNotes',
-        listDealNotes: 'hubspotNotes',
-        get: 'hubspotNotes',
-        update: 'hubspotNotes'
+        // Individual Notes operations - map to specific tool names
+        get: 'get',
+        update: 'update',
+        createContactNote: 'createContactNote',
+        createCompanyNote: 'createCompanyNote',
+        createDealNote: 'createDealNote',
+        listContactNotes: 'listContactNotes',
+        listCompanyNotes: 'listCompanyNotes',
+        listDealNotes: 'listDealNotes'
       },
       Companies: {
         // Companies uses simple operation names that match directly

@@ -1,27 +1,39 @@
 /**
- * Notes BCP Index - Updated for Unified Tool
- *
- * Exports the unified Notes tool that replaces the complex multi-tool interface
- * with a single, intent-driven tool following the architect's specifications.
+ * Notes BCP
+ * 
+ * Provides tools for managing HubSpot notes, including creation with associations,
+ * retrieval, updating, and listing notes for different object types.
  */
 
-import { tool as unifiedNotesTool } from './notes.unified.js';
-import { ToolDefinition } from '../../core/types.js';
+import { BCP } from '../../core/types.js';
+import { tool as getTool } from './notes.get.js';
+import { tool as updateTool } from './notes.update.js';
+import { tool as createContactNoteTool } from './notes.createContactNote.js';
+import { tool as createCompanyNoteTool } from './notes.createCompanyNote.js';
+import { tool as createDealNoteTool } from './notes.createDealNote.js';
+import { tool as listContactNotesTool } from './notes.listContactNotes.js';
+import { tool as listCompanyNotesTool } from './notes.listCompanyNotes.js';
+import { tool as listDealNotesTool } from './notes.listDealNotes.js';
 
 /**
- * Array of unified Note tools
+ * Notes BCP definition
  */
-export const noteTools: ToolDefinition[] = [
-  unifiedNotesTool
-];
-
-/**
- * Notes BCP with simplified tool set
- */
-export const notesBCP = {
-  name: 'Notes',
-  description: 'Unified tool for managing notes in HubSpot with automatic associations',
-  tools: noteTools
+export const notesBCP: BCP = {
+  domain: 'Notes',
+  description: 'HubSpot notes management tools',
+  tools: [
+    getTool,
+    updateTool,
+    createContactNoteTool,
+    createCompanyNoteTool,
+    createDealNoteTool,
+    listContactNotesTool,
+    listCompanyNotesTool,
+    listDealNotesTool
+  ]
 };
 
-export default notesBCP;
+/**
+ * Array of Notes tools for compatibility
+ */
+export const noteTools = notesBCP.tools;
