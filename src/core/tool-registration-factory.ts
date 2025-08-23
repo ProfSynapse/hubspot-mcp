@@ -141,6 +141,9 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
           startTimestamp: z.string().optional().describe('Start timestamp filter (ISO 8601)'),
           endTimestamp: z.string().optional().describe('End timestamp filter (ISO 8601)'),
           after: z.string().optional().describe('Pagination cursor'),
+          
+          // Association operation parameters
+          noteId: z.string().optional().describe('Note ID for association operations'),
           objectType: z.string().optional().describe('Type of object to associate'),
           objectId: z.string().optional().describe('ID of object to associate'),
           toObjectType: z.string().optional().describe('Type of object for list associations')
@@ -193,7 +196,13 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
         };
 
       case 'Properties':
+        // Properties never uses 'id', only 'propertyName'
+        const propertiesParams = {
+          limit: z.number().int().min(1).max(100).optional().describe('Maximum number of results'),
+          properties: z.record(z.any()).optional().describe('Additional object properties')
+        };
         return {
+          ...propertiesParams,
           objectType: z.string().optional().describe('HubSpot object type'),
           propertyName: z.string().optional().describe('Property name'),
           name: z.string().optional().describe('Internal property name'),
