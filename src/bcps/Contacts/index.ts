@@ -6,11 +6,11 @@
  */
 
 import { BCP } from '../../core/types.js';
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as searchTool } from './search.tool.js';
-import { tool as recentTool } from './recent.tool.js';
+import { tool as createTool } from './contacts.create.js';
+import { tool as getTool } from './contacts.get.js';
+import { tool as updateTool } from './contacts.update.js';
+import { tool as searchTool } from './contacts.search.js';
+import { tool as recentTool } from './contacts.recent.js';
 
 /**
  * Contacts BCP definition

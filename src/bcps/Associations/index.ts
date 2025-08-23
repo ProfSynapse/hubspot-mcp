@@ -4,14 +4,14 @@
  * Exports all tools related to HubSpot Associations.
  */
 
-import { tool as createTool } from './create.tool.js';
-import { tool as createDefaultTool } from './createDefault.tool.js';
-import { tool as listTool } from './list.tool.js';
-import { tool as batchCreateTool } from './batchCreate.tool.js';
-import { tool as batchCreateDefaultTool } from './batchCreateDefault.tool.js';
-import { tool as batchReadTool } from './batchRead.tool.js';
-import { tool as getAssociationTypesTool } from './getAssociationTypes.tool.js';
-import { tool as getAssociationTypeReferenceTool } from './getAssociationTypeReference.tool.js';
+import { tool as createTool } from './associations.create.js';
+import { tool as createDefaultTool } from './associations.createDefault.js';
+import { tool as listTool } from './associations.list.js';
+import { tool as batchCreateTool } from './associations.batchCreate.js';
+import { tool as batchCreateDefaultTool } from './associations.batchCreateDefault.js';
+import { tool as batchReadTool } from './associations.batchRead.js';
+import { tool as getAssociationTypesTool } from './associations.getAssociationTypes.js';
+import { tool as getAssociationTypeReferenceTool } from './associations.getAssociationTypeReference.js';
 import { ToolDefinition } from '../../core/types.js';
 
 /**

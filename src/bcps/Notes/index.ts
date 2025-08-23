@@ -5,7 +5,7 @@
  * with a single, intent-driven tool following the architect's specifications.
  */
 
-import { tool as unifiedNotesTool } from './unified-notes.tool.js';
+import { tool as unifiedNotesTool } from './notes.unified.js';
 import { ToolDefinition } from '../../core/types.js';
 
 /**

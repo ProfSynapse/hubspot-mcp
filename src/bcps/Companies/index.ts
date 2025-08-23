@@ -6,11 +6,11 @@
  */
 
 import { BCP } from '../../core/types.js';
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as searchTool } from './search.tool.js';
-import { tool as recentTool } from './recent.tool.js';
+import { tool as createTool } from './companies.create.js';
+import { tool as getTool } from './companies.get.js';
+import { tool as updateTool } from './companies.update.js';
+import { tool as searchTool } from './companies.search.js';
+import { tool as recentTool } from './companies.recent.js';
 
 /**
  * Companies BCP definition

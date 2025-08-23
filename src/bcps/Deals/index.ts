@@ -6,13 +6,13 @@
  */
 
 import { BCP } from '../../core/types.js';
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as searchTool } from './search.tool.js';
-import { tool as recentTool } from './recent.tool.js';
-import { tool as batchCreateTool } from './batchCreate.tool.js';
-import { tool as batchUpdateTool } from './batchUpdate.tool.js';
+import { tool as createTool } from './deals.create.js';
+import { tool as getTool } from './deals.get.js';
+import { tool as updateTool } from './deals.update.js';
+import { tool as searchTool } from './deals.search.js';
+import { tool as recentTool } from './deals.recent.js';
+import { tool as batchCreateTool } from './deals.batchCreate.js';
+import { tool as batchUpdateTool } from './deals.batchUpdate.js';
 
 /**
  * Deals BCP definition
