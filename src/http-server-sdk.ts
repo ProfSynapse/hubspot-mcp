@@ -1,9 +1,22 @@
 /**
- * MCP HTTP Server using Official SDK
+ * Location: /src/http-server-sdk.ts
  * 
- * Replaces our custom implementation with the official MCP SDK 
- * StreamableHTTPServerTransport to ensure proper tool discovery
- * by Claude Desktop.
+ * MCP HTTP Server using Official SDK with Delegated BCP Tools.
+ * 
+ * This implementation uses the official MCP SDK StreamableHTTPServerTransport 
+ * while reusing all existing BCP tool implementations through a clean delegation 
+ * pattern. Follows SOLID principles by separating transport concerns from 
+ * business logic.
+ * 
+ * Used by:
+ * - Railway deployment: Entry point for the production server
+ * - Development: Local server for testing and development
+ * 
+ * How it works with other files:
+ * - Uses BcpToolDelegator to map operations to existing BCP tools
+ * - Uses ToolRegistrationFactory to register consolidated domain tools
+ * - Leverages existing configuration, logging, and error handling utilities
+ * - Maintains session state and transport management for MCP protocol
  */
 
 import express, { Request, Response } from 'express';
@@ -11,10 +24,17 @@ import { randomUUID } from 'node:crypto';
 import cors from 'cors';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest, CallToolResult, JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
+import { isInitializeRequest, JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
-// Simple in-memory event store for resumability (minimal implementation)
+// Import our new delegation architecture
+import { BcpToolDelegator } from './core/bcp-tool-delegator.js';
+import { BcpToolRegistrationFactory } from './core/tool-registration-factory.js';
+
+// Import existing configuration and utilities
+import { loadConfig, validateConfiguration, isDevelopment } from './config/environment.js';
+import { createLogger } from './utils/logger.js';
+
+// Simple event store for resumability
 class SimpleEventStore {
   private events: Map<string, { eventId: string; message: JSONRPCMessage }[]> = new Map();
   private eventCounter = 0;
@@ -31,8 +51,6 @@ class SimpleEventStore {
   async replayEventsAfter(lastEventId: string, { send }: {
     send: (eventId: string, message: JSONRPCMessage) => Promise<void>
   }): Promise<string> {
-    // Simple implementation - replay all events after the lastEventId
-    // In a real implementation, this would be more sophisticated
     const streamId = 'default';
     const events = this.events.get(streamId) || [];
     
@@ -50,13 +68,6 @@ class SimpleEventStore {
   }
 }
 
-// Import our existing configuration and services
-import { loadConfig, validateConfiguration, isDevelopment } from './config/environment.js';
-import { createLogger } from './utils/logger.js';
-
-// Import HubSpot API client for real API calls
-import { createHubspotApiClient } from './core/hubspot-client.js';
-
 // Load configuration
 const config = loadConfig();
 validateConfiguration(config);
@@ -67,6 +78,7 @@ const logger = createLogger({
   serviceName: 'hubspot-mcp-sdk',
   version: '0.1.0'
 });
+
 const PORT = config.PORT || 3000;
 
 // Create Express app
@@ -81,11 +93,18 @@ app.use(cors({
 }));
 
 /**
- * Create MCP Server with HubSpot BCP Tools
+ * Create MCP Server with Delegated BCP Tools
  */
-function createMCPServer(): McpServer {
-  logger.info('🚀 Creating MCP Server with HubSpot BCP tools...');
+async function createMCPServer(): Promise<McpServer> {
+  logger.info('🚀 Creating MCP Server with delegated BCP tools...');
   
+  // Validate HubSpot API token
+  const apiKey = process.env.HUBSPOT_ACCESS_TOKEN;
+  if (!apiKey) {
+    throw new Error('HUBSPOT_ACCESS_TOKEN environment variable is required');
+  }
+  
+  // Create the MCP server instance
   const server = new McpServer({
     name: 'hubspot-mcp',
     version: '0.1.0',
@@ -96,342 +115,23 @@ function createMCPServer(): McpServer {
     }
   });
 
-  // HubSpot BCP Tools registered below
-
-  // Register HubSpot Companies tool
-  server.tool(
-    'hubspotCompany',
-    'HubSpot company management tool with CRUD operations',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
-      id: z.string().optional().describe('Company ID (required for read, update, delete)'),
-      name: z.string().optional().describe('Company name (required for create)'),
-      domain: z.string().optional().describe('Company website domain'),
-      industry: z.string().optional().describe('Company industry'),
-      description: z.string().optional().describe('Company description'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-      properties: z.record(z.any()).optional().describe('Additional company properties'),
-    },
-    async ({ operation, id, name, domain, industry, description, searchQuery, properties }): Promise<CallToolResult> => {
-      logger.info({ operation, id, name }, 'HubSpot company tool called');
-      
-      try {
-        // Get API key from environment
-        const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
-        if (!apiKey) {
-          throw new Error('HUBSPOT_ACCESS_TOKEN is required');
-        }
-        
-        // Create API client
-        const apiClient = createHubspotApiClient(apiKey);
-        let result;
-        
-        switch (operation) {
-          case 'create':
-            if (!name) throw new Error('Company name is required for create operation');
-            result = await apiClient.createCompany({ name, domain, industry, description, ...properties });
-            break;
-          case 'read':
-            if (!id) throw new Error('Company ID is required for read operation');
-            result = await apiClient.getCompany(id);
-            break;
-          case 'update':
-            if (!id) throw new Error('Company ID is required for update operation');
-            result = await apiClient.updateCompany(id, { name, domain, industry, description, ...properties });
-            break;
-          case 'delete':
-            if (!id) throw new Error('Company ID is required for delete operation');
-            result = await apiClient.deleteCompany(id);
-            break;
-          case 'search':
-            result = await apiClient.searchCompanies(searchQuery || '');
-            break;
-          case 'recent':
-            result = await apiClient.getRecentCompanies();
-            break;
-          default:
-            throw new Error(`Unknown operation: ${operation}`);
-        }
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(result, null, 2)
-          }]
-        };
-        
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{
-            type: 'text',
-            text: `❌ Error performing ${operation} operation: ${errorMessage}`
-          }]
-        };
-      }
-    }
-  );
-
-  // Register HubSpot Contacts tool
-  server.tool(
-    'hubspotContact',
-    'HubSpot contact management tool with CRUD operations',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
-      id: z.string().optional().describe('Contact ID (required for read, update, delete)'),
-      email: z.string().optional().describe('Contact email (required for create)'),
-      firstName: z.string().optional().describe('Contact first name'),
-      lastName: z.string().optional().describe('Contact last name'),
-      company: z.string().optional().describe('Contact company'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-      properties: z.record(z.any()).optional().describe('Additional contact properties'),
-    },
-    async ({ operation, id, email, firstName, lastName, company, searchQuery, properties }): Promise<CallToolResult> => {
-      logger.info({ operation, id, email }, 'HubSpot contact tool called');
-      try {
-        const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
-        if (!apiKey) {
-          throw new Error('HUBSPOT_ACCESS_TOKEN is required');
-        }
-        
-        const apiClient = createHubspotApiClient(apiKey);
-        let result;
-        
-        switch (operation) {
-          case 'create':
-            if (!email) throw new Error('Email is required for create operation');
-            result = await apiClient.createContact({ email, firstName, lastName, company, ...properties });
-            break;
-          case 'read':
-            if (!id) throw new Error('Contact ID is required for read operation');
-            result = await apiClient.getContact(id);
-            break;
-          case 'search':
-            result = await apiClient.searchContacts(searchQuery || '');
-            break;
-          default:
-            result = { message: `${operation} operation completed` };
-        }
-        
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(result, null, 2)
-          }]
-        };
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-          content: [{
-            type: 'text',
-            text: `Error: ${errorMessage}`
-          }]
-        };
-      }
-    }
-  );
-
-  // Register HubSpot Notes tool
-  server.tool(
-    'hubspotNote',
-    'HubSpot note management tool with CRUD operations',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search']).describe('The operation to perform'),
-      id: z.string().optional().describe('Note ID (required for read, update, delete)'),
-      body: z.string().optional().describe('Note content (required for create)'),
-      objectType: z.enum(['contact', 'company', 'deal', 'ticket']).optional().describe('Type of object to associate note with'),
-      objectId: z.string().optional().describe('ID of object to associate note with'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-    },
-    async ({ operation, id, body, objectType, objectId, searchQuery }): Promise<CallToolResult> => {
-      logger.info({ operation, id, objectType }, 'HubSpot note tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on note${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Associations tool
-  server.tool(
-    'hubspotAssociation',
-    'HubSpot object association management tool',
-    {
-      operation: z.enum(['create', 'delete', 'list']).describe('The operation to perform'),
-      fromObjectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Source object type'),
-      fromObjectId: z.string().describe('Source object ID'),
-      toObjectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Target object type'),
-      toObjectId: z.string().optional().describe('Target object ID (required for create/delete)'),
-      associationType: z.string().optional().describe('Type of association'),
-    },
-    async ({ operation, fromObjectType, fromObjectId, toObjectType, toObjectId, associationType }): Promise<CallToolResult> => {
-      logger.info({ operation, fromObjectType, toObjectType }, 'HubSpot association tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} association between ${fromObjectType} ${fromObjectId} and ${toObjectType}${toObjectId ? ` ${toObjectId}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Deals tool
-  server.tool(
-    'hubspotDeal',
-    'HubSpot deal management tool with CRUD operations',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
-      id: z.string().optional().describe('Deal ID (required for read, update, delete)'),
-      dealname: z.string().optional().describe('Deal name (required for create)'),
-      amount: z.number().optional().describe('Deal amount'),
-      dealstage: z.string().optional().describe('Deal stage'),
-      pipeline: z.string().optional().describe('Deal pipeline'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-      properties: z.record(z.any()).optional().describe('Additional deal properties'),
-    },
-    async ({ operation, id, dealname, amount, dealstage, pipeline, searchQuery, properties }): Promise<CallToolResult> => {
-      logger.info({ operation, id, dealname }, 'HubSpot deal tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on deal${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Products tool
-  server.tool(
-    'hubspotProduct',
-    'HubSpot product management tool with CRUD operations',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'recent']).describe('The operation to perform'),
-      id: z.string().optional().describe('Product ID (required for read, update, delete)'),
-      name: z.string().optional().describe('Product name (required for create)'),
-      price: z.number().optional().describe('Product price'),
-      description: z.string().optional().describe('Product description'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-      properties: z.record(z.any()).optional().describe('Additional product properties'),
-    },
-    async ({ operation, id, name, price, description, searchQuery, properties }): Promise<CallToolResult> => {
-      logger.info({ operation, id, name }, 'HubSpot product tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on product${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Properties tool
-  server.tool(
-    'hubspotProperty',
-    'HubSpot property management tool for custom properties',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'list']).describe('The operation to perform'),
-      objectType: z.enum(['contact', 'company', 'deal', 'ticket', 'product', 'quote']).describe('Object type for the property'),
-      name: z.string().optional().describe('Property name (required for create, read, update, delete)'),
-      label: z.string().optional().describe('Property label (required for create)'),
-      type: z.enum(['string', 'number', 'bool', 'datetime', 'enumeration']).optional().describe('Property type (required for create)'),
-      description: z.string().optional().describe('Property description'),
-      groupName: z.string().optional().describe('Property group name'),
-      options: z.array(z.object({ label: z.string(), value: z.string() })).optional().describe('Options for enumeration properties'),
-    },
-    async ({ operation, objectType, name, label, type, description, groupName, options }): Promise<CallToolResult> => {
-      logger.info({ operation, objectType, name }, 'HubSpot property tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on ${objectType} property${name ? ` ${name}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Emails tool
-  server.tool(
-    'hubspotEmail',
-    'HubSpot email management tool for email activities',
-    {
-      operation: z.enum(['create', 'read', 'search']).describe('The operation to perform'),
-      id: z.string().optional().describe('Email ID (required for read)'),
-      subject: z.string().optional().describe('Email subject (required for create)'),
-      body: z.string().optional().describe('Email body content (required for create)'),
-      toEmail: z.string().optional().describe('Recipient email address (required for create)'),
-      fromEmail: z.string().optional().describe('Sender email address'),
-      contactId: z.string().optional().describe('Associated contact ID'),
-      companyId: z.string().optional().describe('Associated company ID'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-    },
-    async ({ operation, id, subject, body, toEmail, fromEmail, contactId, companyId, searchQuery }): Promise<CallToolResult> => {
-      logger.info({ operation, id, subject }, 'HubSpot email tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on email${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Blog Posts tool
-  server.tool(
-    'hubspotBlogPost',
-    'HubSpot blog post management tool for content marketing',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search', 'list']).describe('The operation to perform'),
-      id: z.string().optional().describe('Blog post ID (required for read, update, delete)'),
-      name: z.string().optional().describe('Blog post title (required for create)'),
-      slug: z.string().optional().describe('Blog post URL slug'),
-      contentGroupId: z.string().optional().describe('Blog/content group ID'),
-      state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']).optional().describe('Blog post state'),
-      htmlTitle: z.string().optional().describe('HTML title tag'),
-      metaDescription: z.string().optional().describe('Meta description'),
-      postBody: z.string().optional().describe('Blog post content'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-    },
-    async ({ operation, id, name, slug, contentGroupId, state, htmlTitle, metaDescription, postBody, searchQuery }): Promise<CallToolResult> => {
-      logger.info({ operation, id, name }, 'HubSpot blog post tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on blog post${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  // Register HubSpot Quotes tool
-  server.tool(
-    'hubspotQuote',
-    'HubSpot quote management tool for sales quotes',
-    {
-      operation: z.enum(['create', 'read', 'update', 'delete', 'search']).describe('The operation to perform'),
-      id: z.string().optional().describe('Quote ID (required for read, update, delete)'),
-      name: z.string().optional().describe('Quote name (required for create)'),
-      dealId: z.string().optional().describe('Associated deal ID'),
-      contactId: z.string().optional().describe('Associated contact ID'),
-      domain: z.string().optional().describe('Quote domain/URL'),
-      expirationDate: z.string().optional().describe('Quote expiration date (ISO format)'),
-      searchQuery: z.string().optional().describe('Search query (for search operation)'),
-      properties: z.record(z.any()).optional().describe('Additional quote properties'),
-    },
-    async ({ operation, id, name, dealId, contactId, domain, expirationDate, searchQuery, properties }): Promise<CallToolResult> => {
-      logger.info({ operation, id, name }, 'HubSpot quote tool called');
-      return {
-        content: [{
-          type: 'text',
-          text: `✅ Performed ${operation} operation on quote${id ? ` ${id}` : ''}.`
-        }]
-      };
-    }
-  );
-
-  logger.info('✅ MCP Server created with all 10 HubSpot BCP tools registered');
+  // Create delegation architecture components
+  const delegator = new BcpToolDelegator();
+  const toolFactory = new BcpToolRegistrationFactory();
   
+  // Register all domain tools using the delegation pattern
+  try {
+    await toolFactory.registerAllTools(server, delegator);
+    logger.info('✅ All BCP tools registered successfully through delegation layer');
+    
+    // Log cache statistics
+    const cacheStats = delegator.getCacheStats();
+    logger.info(`📊 Cache initialized: ${cacheStats.bcpCount} BCPs, ${cacheStats.toolCount} tools`);
+  } catch (error) {
+    logger.error('❌ Failed to register BCP tools:', error);
+    throw error;
+  }
+
   return server;
 }
 
@@ -465,7 +165,7 @@ const handleMCPPost = async (req: Request, res: Response) => {
       const eventStore = new SimpleEventStore();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
-        eventStore, // Enable resumability
+        eventStore,
         onsessioninitialized: (newSessionId) => {
           logger.info({ sessionId: newSessionId }, 'Session initialized, storing transport');
           transports[newSessionId] = transport;
@@ -482,13 +182,13 @@ const handleMCPPost = async (req: Request, res: Response) => {
       };
 
       // Create and connect MCP server to transport
-      const mcpServer = createMCPServer();
+      const mcpServer = await createMCPServer();
       await mcpServer.connect(transport);
-      logger.info('MCP server connected to transport');
+      logger.info('MCP server connected to transport with delegated tools');
 
       // Handle the initialization request
       await transport.handleRequest(req, res, req.body);
-      logger.info('Initialization request handled');
+      logger.info('Initialization request handled successfully');
       return;
     } else {
       // Invalid request
@@ -589,16 +289,18 @@ app.get('/health', (req, res) => {
     service: 'hubspot-mcp-sdk',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
-    activeSessions: Object.keys(transports).length
+    activeSessions: Object.keys(transports).length,
+    architecture: 'delegated-bcp'
   });
 });
 
 // Start server
 const server = app.listen(PORT, () => {
-  logger.info({ port: PORT }, '🚀 HubSpot MCP Server (SDK) listening');
+  logger.info({ port: PORT }, '🚀 HubSpot MCP Server (SDK + Delegated BCP) listening');
   logger.info('🔧 Test with: /health endpoint');
   logger.info('📡 MCP endpoint: /mcp');
   logger.info(`🌐 Connect Claude Desktop to: ${isDevelopment(config) ? 'http://localhost:' + PORT : 'https://hubspot.synapticlabs.ai'}/mcp`);
+  logger.info('🏗️ Architecture: Official MCP SDK + Delegated BCP Tools');
 });
 
 // Graceful shutdown
@@ -621,3 +323,5 @@ process.on('SIGINT', async () => {
     process.exit(0);
   });
 });
+
+export default app;

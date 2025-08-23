@@ -752,6 +752,631 @@ export class HubspotApiClient {
   }
 
   //=============================================================================
+  // NOTES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a note
+   * 
+   * @param properties - Note properties
+   * @returns Created note data
+   */
+  async createNote(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.create('notes', {
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createNote');
+    }
+  }
+
+  /**
+   * Get note by ID
+   * 
+   * @param id - Note ID
+   * @returns Note data
+   */
+  async getNote(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.getById('notes', id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getNote');
+    }
+  }
+
+  /**
+   * Update note properties
+   * 
+   * @param id - Note ID
+   * @param properties - Properties to update
+   * @returns Updated note data
+   */
+  async updateNote(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.update('notes', id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateNote');
+    }
+  }
+
+  /**
+   * Delete/archive a note
+   * 
+   * @param id - Note ID
+   */
+  async deleteNote(id: string): Promise<void> {
+    try {
+      await this.client.crm.objects.basicApi.archive('notes', id);
+    } catch (error) {
+      this.handleApiError(error, 'deleteNote');
+    }
+  }
+
+  /**
+   * Search notes
+   * 
+   * @param searchRequest - Search request
+   * @returns Matching notes
+   */
+  async searchNotes(searchRequest: any): Promise<any[]> {
+    try {
+      const response = await this.client.crm.objects.searchApi.doSearch('notes', searchRequest);
+      
+      return this.formatResponse(response.results.map(note => ({
+        id: note.id,
+        properties: note.properties,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchNotes');
+    }
+  }
+
+  //=============================================================================
+  // PRODUCTS API METHODS
+  //=============================================================================
+
+  /**
+   * Create a product
+   * 
+   * @param properties - Product properties
+   * @returns Created product data
+   */
+  async createProduct(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.create({
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createProduct');
+    }
+  }
+
+  /**
+   * Get product by ID
+   * 
+   * @param id - Product ID
+   * @returns Product data
+   */
+  async getProduct(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.getById(id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getProduct');
+    }
+  }
+
+  /**
+   * Update product properties
+   * 
+   * @param id - Product ID
+   * @param properties - Properties to update
+   * @returns Updated product data
+   */
+  async updateProduct(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.update(id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateProduct');
+    }
+  }
+
+  /**
+   * Delete/archive a product
+   * 
+   * @param id - Product ID
+   */
+  async deleteProduct(id: string): Promise<void> {
+    try {
+      await this.client.crm.products.basicApi.archive(id);
+    } catch (error) {
+      this.handleApiError(error, 'deleteProduct');
+    }
+  }
+
+  /**
+   * Search products
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching products
+   */
+  async searchProducts(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.products.searchApi.doSearch({
+        filterGroups: [{
+          filters: [{
+            propertyName: 'name',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['name', 'price', 'description']
+      });
+      
+      return this.formatResponse(response.results.map(product => ({
+        id: product.id,
+        properties: product.properties,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchProducts');
+    }
+  }
+
+  /**
+   * Get recent products
+   * 
+   * @param limit - Maximum number of results
+   * @returns Recent products
+   */
+  async getRecentProducts(limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.products.basicApi.getPage(
+        limit,
+        undefined,
+        undefined,
+        undefined,
+        ['name', 'price', 'description'],
+        false
+      );
+      
+      return this.formatResponse(response.results.map(product => ({
+        id: product.id,
+        properties: product.properties,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'getRecentProducts');
+    }
+  }
+
+  //=============================================================================
+  // EMAIL ACTIVITIES API METHODS
+  //=============================================================================
+
+  /**
+   * Create an email activity/engagement
+   * 
+   * @param properties - Email properties
+   * @returns Created email data
+   */
+  async createEmail(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.create('emails', {
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createEmail');
+    }
+  }
+
+  /**
+   * Get email by ID
+   * 
+   * @param id - Email ID
+   * @returns Email data
+   */
+  async getEmail(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.getById('emails', id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getEmail');
+    }
+  }
+
+  /**
+   * Search emails
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching emails
+   */
+  async searchEmails(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.objects.searchApi.doSearch('emails', {
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_email_subject',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['hs_email_subject', 'hs_email_text', 'hs_timestamp']
+      });
+      
+      return this.formatResponse(response.results.map(email => ({
+        id: email.id,
+        properties: email.properties,
+        createdAt: email.createdAt,
+        updatedAt: email.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchEmails');
+    }
+  }
+
+  //=============================================================================
+  // QUOTES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a quote
+   * 
+   * @param properties - Quote properties
+   * @returns Created quote data
+   */
+  async createQuote(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.create({
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createQuote');
+    }
+  }
+
+  /**
+   * Get quote by ID
+   * 
+   * @param id - Quote ID
+   * @returns Quote data
+   */
+  async getQuote(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.getById(id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getQuote');
+    }
+  }
+
+  /**
+   * Update quote properties
+   * 
+   * @param id - Quote ID
+   * @param properties - Properties to update
+   * @returns Updated quote data
+   */
+  async updateQuote(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.update(id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateQuote');
+    }
+  }
+
+  /**
+   * Delete/archive a quote
+   * 
+   * @param id - Quote ID
+   */
+  async deleteQuote(id: string): Promise<void> {
+    try {
+      await this.client.crm.quotes.basicApi.archive(id);
+    } catch (error) {
+      this.handleApiError(error, 'deleteQuote');
+    }
+  }
+
+  /**
+   * Search quotes
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching quotes
+   */
+  async searchQuotes(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.quotes.searchApi.doSearch({
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_title',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['hs_title', 'hs_expiration_date', 'hs_domain']
+      });
+      
+      return this.formatResponse(response.results.map(quote => ({
+        id: quote.id,
+        properties: quote.properties,
+        createdAt: quote.createdAt,
+        updatedAt: quote.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchQuotes');
+    }
+  }
+
+  //=============================================================================
+  // ASSOCIATIONS API METHODS
+  //=============================================================================
+
+  /**
+   * Create an association between two objects
+   * 
+   * @param fromObjectType - Source object type
+   * @param fromObjectId - Source object ID
+   * @param toObjectType - Target object type
+   * @param toObjectId - Target object ID
+   * @param associationTypeId - Association type ID
+   */
+  async createAssociation(
+    fromObjectType: string,
+    fromObjectId: string,
+    toObjectType: string,
+    toObjectId: string,
+    associationTypeId: number = 1
+  ): Promise<void> {
+    try {
+      await this.client.apiRequest({
+        method: 'PUT',
+        path: `/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/${toObjectType}/${toObjectId}`,
+        body: [{
+          associationCategory: 'HUBSPOT_DEFINED',
+          associationTypeId
+        }]
+      });
+    } catch (error) {
+      this.handleApiError(error, 'createAssociation');
+    }
+  }
+
+  /**
+   * Delete an association between two objects
+   * 
+   * @param fromObjectType - Source object type
+   * @param fromObjectId - Source object ID
+   * @param toObjectType - Target object type
+   * @param toObjectId - Target object ID
+   */
+  async deleteAssociation(
+    fromObjectType: string,
+    fromObjectId: string,
+    toObjectType: string,
+    toObjectId: string
+  ): Promise<void> {
+    try {
+      await this.client.apiRequest({
+        method: 'DELETE',
+        path: `/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/${toObjectType}/${toObjectId}`
+      });
+    } catch (error) {
+      this.handleApiError(error, 'deleteAssociation');
+    }
+  }
+
+  /**
+   * List associations for an object
+   * 
+   * @param objectType - Object type
+   * @param objectId - Object ID
+   * @param toObjectType - Target object type
+   * @param limit - Maximum number of results
+   * @returns List of associations
+   */
+  async listAssociations(
+    objectType: string,
+    objectId: string,
+    toObjectType: string,
+    limit: number = 100
+  ): Promise<any> {
+    try {
+      const response = await this.client.apiRequest({
+        method: 'GET',
+        path: `/crm/v4/objects/${objectType}/${objectId}/associations/${toObjectType}?limit=${limit}`
+      });
+      
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'listAssociations');
+    }
+  }
+
+  //=============================================================================
+  // PROPERTIES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a custom property
+   * 
+   * @param objectType - Object type
+   * @param propertyData - Property data
+   * @returns Created property data
+   */
+  async createProperty(objectType: string, propertyData: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.create(objectType, propertyData as any);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'createProperty');
+    }
+  }
+
+  /**
+   * Get property by name
+   * 
+   * @param objectType - Object type
+   * @param propertyName - Property name
+   * @returns Property data
+   */
+  async getProperty(objectType: string, propertyName: string): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.getByName(objectType, propertyName);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'getProperty');
+    }
+  }
+
+  /**
+   * Update property
+   * 
+   * @param objectType - Object type
+   * @param propertyName - Property name
+   * @param propertyData - Updated property data
+   * @returns Updated property data
+   */
+  async updateProperty(objectType: string, propertyName: string, propertyData: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.update(objectType, propertyName, propertyData);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'updateProperty');
+    }
+  }
+
+  /**
+   * Delete property
+   * 
+   * @param objectType - Object type
+   * @param propertyName - Property name
+   */
+  async deleteProperty(objectType: string, propertyName: string): Promise<void> {
+    try {
+      await this.client.crm.properties.coreApi.archive(objectType, propertyName);
+    } catch (error) {
+      this.handleApiError(error, 'deleteProperty');
+    }
+  }
+
+  /**
+   * List properties for an object type
+   * 
+   * @param objectType - Object type
+   * @returns List of properties
+   */
+  async listProperties(objectType: string): Promise<any[]> {
+    try {
+      const response = await this.client.crm.properties.coreApi.getAll(objectType);
+      return this.formatResponse(response.results);
+    } catch (error) {
+      return this.handleApiError(error, 'listProperties');
+    }
+  }
+
+  //=============================================================================
   // DEALS API METHODS
   //=============================================================================
 

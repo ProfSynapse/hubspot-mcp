@@ -43,7 +43,9 @@
       "Bash(git clone:*)",
       "Bash(npm install:*)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test_token npm start)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(timeout 10s npm run dev:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "additionalDirectories": [
