@@ -138,12 +138,100 @@ export class BcpToolDelegator implements BcpDelegator {
     // Check tool cache first
     const toolMap = this.toolCache.get(domain);
     if (toolMap) {
-      return toolMap.get(operation);
+      // First try direct operation match
+      const directMatch = toolMap.get(operation);
+      if (directMatch) {
+        return directMatch;
+      }
+      
+      // Try mapped operation name
+      const mappedToolName = this.mapOperationToToolName(domain, operation);
+      if (mappedToolName) {
+        return toolMap.get(mappedToolName);
+      }
     }
 
     // Load BCP if not cached (will cache tools)
     await this.loadBcp(domain);
-    return this.toolCache.get(domain)?.get(operation);
+    const loadedToolMap = this.toolCache.get(domain);
+    if (loadedToolMap) {
+      // First try direct operation match
+      const directMatch = loadedToolMap.get(operation);
+      if (directMatch) {
+        return directMatch;
+      }
+      
+      // Try mapped operation name
+      const mappedToolName = this.mapOperationToToolName(domain, operation);
+      if (mappedToolName) {
+        return loadedToolMap.get(mappedToolName);
+      }
+    }
+    
+    return undefined;
+  }
+
+  /**
+   * Maps operation names to tool names for different domain naming conventions
+   * Some domains use simple operation names (e.g., 'recent', 'create')
+   * Others use descriptive tool names (e.g., 'getRecentNotes', 'createNote')
+   */
+  private mapOperationToToolName(domain: string, operation: string): string | null {
+    const operationMappings: Record<string, Record<string, string>> = {
+      Notes: {
+        recent: 'getRecentNotes',
+        list: 'listNotes',
+        create: 'createNote',
+        get: 'getNote',
+        update: 'updateNote',
+        delete: 'deleteNote',
+        addAssociation: 'addAssociationToNote',
+        removeAssociation: 'removeAssociationFromNote',
+        listAssociations: 'listNoteAssociations',
+        createWithAssociations: 'createNoteWithAssociations'
+      },
+      Companies: {
+        // Companies uses simple operation names that match directly
+        // No mapping needed - direct operation names work
+      },
+      Contacts: {
+        // Contacts uses simple operation names that match directly
+        // No mapping needed - direct operation names work
+      },
+      Deals: {
+        // Need to check Deals domain - may use simple names
+      },
+      Associations: {
+        // Associations likely uses descriptive names
+        batchCreate: 'batchCreate',
+        batchCreateDefault: 'batchCreateDefault',
+        batchDelete: 'batchDelete',
+        batchRead: 'batchRead',
+        create: 'create',
+        createDefault: 'createDefault',
+        delete: 'delete',
+        deleteLabels: 'deleteLabels',
+        getAssociationTypeReference: 'getAssociationTypeReference',
+        getAssociationTypes: 'getAssociationTypes'
+      },
+      Products: {
+        // Products likely uses descriptive names - need to map
+      },
+      Properties: {
+        // Properties likely uses descriptive names - need to map  
+      },
+      Emails: {
+        // Emails may use descriptive names - need to map
+      },
+      BlogPosts: {
+        // BlogPosts may use descriptive names - need to map
+      },
+      Quotes: {
+        // Quotes may use descriptive names - need to map
+      }
+    };
+
+    return operationMappings[domain]?.[operation] || null;
   }
 
   validateParams(params: any, schema: any, toolName: string): void {
