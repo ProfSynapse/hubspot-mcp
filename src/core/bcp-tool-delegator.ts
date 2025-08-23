@@ -218,7 +218,16 @@ export class BcpToolDelegator implements BcpDelegator {
         // Products likely uses descriptive names - need to map
       },
       Properties: {
-        // Properties likely uses descriptive names - need to map  
+        list: 'listProperties',
+        get: 'getProperty',
+        create: 'createProperty',
+        update: 'updateProperty',
+        delete: 'deleteProperty',
+        listGroups: 'listPropertyGroups',
+        getGroup: 'getPropertyGroup',
+        createGroup: 'createPropertyGroup',
+        updateGroup: 'updatePropertyGroup',
+        deleteGroup: 'deletePropertyGroup'
       },
       Emails: {
         // Emails may use descriptive names - need to map
