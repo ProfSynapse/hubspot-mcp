@@ -18,6 +18,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { BcpDelegator } from './bcp-tool-delegator.js';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { withConditionalAnalytics } from '../analytics/middleware.js';
 
 export interface ToolRegistrationFactory {
   createDomainTool(domain: string, delegator: BcpDelegator): DomainToolConfig;
@@ -295,7 +296,7 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
   }
 
   private createDomainHandler(domain: string, delegator: BcpDelegator) {
-    return async (params: any): Promise<CallToolResult> => {
+    const baseHandler = async (params: any): Promise<CallToolResult> => {
       try {
         const { operation, ...operationParams } = params;
         
@@ -315,6 +316,10 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
         };
       }
     };
+
+    // Wrap with analytics middleware - this will extract operation from params
+    const toolName = `hubspot${domain}`;
+    return withConditionalAnalytics(baseHandler, toolName);
   }
 
   async registerAllTools(server: McpServer, delegator: BcpDelegator): Promise<void> {

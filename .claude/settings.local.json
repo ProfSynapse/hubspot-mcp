@@ -46,7 +46,8 @@
       "Bash(sed:*)",
       "Bash(timeout 10s npm run dev:*)",
       "Bash(pkill:*)",
-      "Bash(PORT=3001 HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)"
+      "Bash(PORT=3001 HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "additionalDirectories": [
