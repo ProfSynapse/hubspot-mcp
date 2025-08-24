@@ -47,7 +47,13 @@
       "Bash(timeout 10s npm run dev:*)",
       "Bash(pkill:*)",
       "Bash(PORT=3001 HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(sudo apt:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(docker:*)",
+      "Bash(npm run dev:*)",
+      "Bash(PORT=3000 npm run dev)",
+      "Bash(PORT=3004 npm run dev)"
     ],
     "deny": [],
     "additionalDirectories": [
