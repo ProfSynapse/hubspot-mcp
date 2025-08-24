@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { NotesService } from './notes.service.js';
+import { enhanceNotesResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for get note tool
@@ -55,11 +56,13 @@ export const tool: ToolDefinition = {
         params.includeAssociations !== false
       );
 
-      return {
+      const response = {
         success: true,
         data: result,
         message: 'Successfully retrieved note'
       };
+
+      return enhanceNotesResponse(response, 'get', params);
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;

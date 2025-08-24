@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { NotesService } from './notes.service.js';
+import { enhanceNotesResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for create company note tool
@@ -88,11 +89,13 @@ export const tool: ToolDefinition = {
         }
       );
 
-      return {
+      const response = {
         success: true,
         data: result,
         message: 'Successfully created company note'
       };
+
+      return enhanceNotesResponse(response, 'createCompanyNote', params);
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;

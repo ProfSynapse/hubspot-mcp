@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { NotesService } from './notes.service.js';
+import { enhanceNotesResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for list deal notes tool
@@ -80,11 +81,13 @@ export const tool: ToolDefinition = {
         }
       );
 
-      return {
+      const response = {
         success: true,
         data: result,
         message: 'Successfully retrieved deal notes'
       };
+
+      return enhanceNotesResponse(response, 'listDealNotes', params);
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;
