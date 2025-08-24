@@ -7,7 +7,7 @@
 
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { NotesService } from './notes.service.js';
-import { enhanceNotesResponse } from '../../core/response-enhancer.js';
+import { enhanceNotesResponse, enhanceErrorResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for create contact note tool
@@ -17,7 +17,7 @@ const inputSchema: InputSchema = {
   properties: {
     contactId: {
       type: 'string',
-      description: 'ID of the contact to associate the note with (required)'
+      description: 'ID of the contact to associate the note with (required). Use Contacts domain search operations if you need to find the contact ID first.'
     },
     content: {
       type: 'string',
@@ -33,7 +33,7 @@ const inputSchema: InputSchema = {
     },
     metadata: {
       type: 'object',
-      description: 'Optional additional properties'
+      description: 'Optional custom properties object. IMPORTANT: Custom properties must exist in HubSpot first. Use Properties domain to list available properties for notes, or create them in HubSpot Settings > Properties > Notes.'
     }
   },
   required: ['contactId', 'content']
@@ -89,6 +89,21 @@ export const tool: ToolDefinition = {
 
       return enhanceNotesResponse(response, 'createContactNote', params);
     } catch (error) {
+      // For property validation errors, enhance the error with suggestions
+      if (error instanceof Error && (error.message.includes('Property') || error.message.includes('PROPERTY_DOESNT_EXIST'))) {
+        const enhancedError = enhanceErrorResponse(error, 'createContactNote', params, 'Notes');
+        
+        // Throw enhanced BcpError with suggestions in the message
+        const suggestionsText = enhancedError.suggestions ? 
+          '\n\nSuggestions:\n' + enhancedError.suggestions.join('\n') : '';
+        
+        throw new BcpError(
+          `Failed to create contact note: ${error.message}${suggestionsText}`,
+          'API_ERROR',
+          (error as any).status || 500
+        );
+      }
+      
       if (error instanceof BcpError) {
         throw error;
       }

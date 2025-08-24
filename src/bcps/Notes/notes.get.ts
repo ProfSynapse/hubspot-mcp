@@ -17,7 +17,7 @@ const inputSchema: InputSchema = {
   properties: {
     noteId: {
       type: 'string',
-      description: 'ID of the note (required)'
+      description: 'ID of the note (required). Use list operations (listContactNotes, listCompanyNotes, etc.) to find note IDs first.'
     },
     includeAssociations: {
       type: 'boolean',

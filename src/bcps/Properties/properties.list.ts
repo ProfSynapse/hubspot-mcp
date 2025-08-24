@@ -1,25 +1,31 @@
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { PropertiesService } from './properties.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 const inputSchema: InputSchema = {
   type: 'object',
   properties: {
     objectType: {
       type: 'string',
-      description: 'The HubSpot object type to get properties for (contacts, companies, deals, tickets, etc.)'
+      description: 'The HubSpot object type to get PROPERTY SCHEMAS for (contacts, companies, deals, tickets, notes, etc.). NOTE: This lists property definitions, not object data. To list actual objects, use the respective domain (e.g., Notes domain for note data, Contacts domain for contact data).'
     }
   },
   required: ['objectType'],
   examples: [{
-    objectType: 'contacts'
+    objectType: 'contacts',
+    description: 'Lists available property fields for contacts (email, firstname, etc.)'
   }, {
-    objectType: 'companies'
+    objectType: 'companies', 
+    description: 'Lists available property fields for companies (name, domain, etc.)'
+  }, {
+    objectType: 'notes',
+    description: 'Lists available property fields for notes - for actual note data, use Notes domain'
   }]
 };
 
 export const tool: ToolDefinition = {
   name: 'listProperties',
-  description: 'Get all properties for a specific HubSpot object type',
+  description: 'Get property SCHEMAS (field definitions) for a HubSpot object type. Returns property names, types, and metadata - NOT the actual object data. For object data, use the respective domain (Notes, Contacts, Companies, etc.)',
   inputSchema,
   handler: async (params) => {
     const tempConfig: ServiceConfig = {
@@ -35,7 +41,7 @@ export const tool: ToolDefinition = {
 
     try {
       const properties = await service.getProperties(params.objectType);
-      return {
+      const response = {
         message: `Found ${properties.length} properties for ${params.objectType}`,
         properties,
         details: {
@@ -44,6 +50,8 @@ export const tool: ToolDefinition = {
           propertyNames: properties.map(p => p.name).slice(0, 10)
         }
       };
+      
+      return enhanceResponse(response, 'list', params, 'Properties');
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;

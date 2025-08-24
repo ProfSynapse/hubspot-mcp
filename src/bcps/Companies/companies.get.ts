@@ -16,7 +16,7 @@ const inputSchema: InputSchema = {
   properties: {
     id: {
       type: 'string',
-      description: 'HubSpot company ID (required)'
+      description: 'HubSpot company ID (required). Use search or recent operations to find company IDs first.'
     }
   },
   required: ['id']
