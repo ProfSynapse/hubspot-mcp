@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema } from '../../core/types.js';
 import { createHubspotApiClient } from '../../core/hubspot-client.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for create blog post tool
@@ -31,6 +32,10 @@ const inputSchema: InputSchema = {
     slug: {
       type: 'string',
       description: 'URL slug for the blog post'
+    },
+    metaDescription: {
+      type: 'string',
+      description: 'Meta description for SEO (recommended for search engine optimization)'
     },
     postBody: {
       type: 'string',
@@ -61,13 +66,14 @@ export const tool: ToolDefinition = {
         contentGroupId: params.contentGroupId,
         state: 'DRAFT', // Always set to DRAFT
         ...(params.slug && { slug: params.slug }),
+        ...(params.metaDescription && { metaDescription: params.metaDescription }),
         ...(params.postBody && { postBody: params.postBody })
       };
       
       // Create blog post
       const blogPost = await apiClient.createBlogPost(properties);
       
-      return {
+      const response = {
         message: 'Blog post created successfully',
         blogPost: {
           id: blogPost.id,
@@ -78,12 +84,20 @@ export const tool: ToolDefinition = {
           url: `https://app.hubspot.com/content/${blogPost.contentGroupId}/blog-posts/${blogPost.id}`
         }
       };
+      
+      return enhanceResponse(response, 'create', params, 'BlogPosts');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        message: 'Failed to create blog post',
-        error: errorMessage
-      };
+      return enhanceResponse(
+        {
+          message: 'Failed to create blog post',
+          error: errorMessage
+        },
+        'create',
+        params,
+        'BlogPosts',
+        error instanceof Error ? error : undefined
+      );
     }
   }
 };

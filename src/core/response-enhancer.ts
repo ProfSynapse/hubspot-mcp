@@ -5,7 +5,7 @@
  * and operations to help users navigate between related tools and domains.
  */
 
-import { PARAMETER_SUGGESTIONS, WORKFLOW_SUGGESTIONS, DOMAIN_SUGGESTIONS, ERROR_SUGGESTIONS, METADATA_SUGGESTIONS, DOMAIN_CONFUSION_PATTERNS } from './suggestion-config.js';
+import { PARAMETER_SUGGESTIONS, WORKFLOW_SUGGESTIONS, DOMAIN_SUGGESTIONS, ERROR_SUGGESTIONS, METADATA_SUGGESTIONS, DOMAIN_CONFUSION_PATTERNS, WORKFLOW_PATTERNS } from './suggestion-config.js';
 
 /**
  * Enhanced response with contextual suggestions
@@ -91,6 +91,34 @@ export function enhanceResponse(
   // These guide users through common operation sequences
   if (WORKFLOW_SUGGESTIONS[operation]) {
     suggestions.push(...WORKFLOW_SUGGESTIONS[operation]);
+  }
+  
+  // Add workflow pattern suggestions for common use cases
+  if (domain && WORKFLOW_PATTERNS[domain]) {
+    const patterns = WORKFLOW_PATTERNS[domain];
+    
+    // Show workflow patterns based on operation context
+    if ((operation === 'search' || operation === 'get') && patterns['contact-lookup'] && domain === 'Contacts') {
+      suggestions.push(...patterns['contact-lookup']);
+    } else if ((operation === 'search' || operation === 'get') && patterns['company-lookup'] && domain === 'Companies') {
+      suggestions.push(...patterns['company-lookup']);
+    } else if (operation === 'update' && patterns['contact-update'] && domain === 'Contacts') {
+      suggestions.push(...patterns['contact-update']);
+    } else if (operation === 'update' && patterns['company-update'] && domain === 'Companies') {
+      suggestions.push(...patterns['company-update']);
+    } else if ((operation.includes('create') || operation.includes('Note')) && patterns['note-creation'] && domain === 'Notes') {
+      suggestions.push(...patterns['note-creation']);
+    } else if ((operation === 'list' || operation === 'get') && patterns['note-management'] && domain === 'Notes') {
+      suggestions.push(...patterns['note-management']);
+    } else if ((operation === 'list' || operation === 'create') && patterns['custom-properties'] && domain === 'Properties') {
+      suggestions.push(...patterns['custom-properties']);
+    } else if ((operation === 'listGroups' || operation === 'createGroup' || operation === 'updateGroup') && patterns['property-groups'] && domain === 'Properties') {
+      suggestions.push(...patterns['property-groups']);
+    } else if ((operation === 'create' || operation === 'update' || operation === 'addLineItem') && patterns['quote-management'] && domain === 'Quotes') {
+      suggestions.push(...patterns['quote-management']);
+    } else if ((operation === 'addLineItem' || operation === 'updateLineItem' || operation === 'removeLineItem') && patterns['line-item-management'] && domain === 'Quotes') {
+      suggestions.push(...patterns['line-item-management']);
+    }
   }
   
   // Add domain-specific suggestions

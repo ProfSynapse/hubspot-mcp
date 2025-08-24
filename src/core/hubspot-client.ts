@@ -1452,57 +1452,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Batch create deals
-   * 
-   * @param dealsInput - Array of deal properties
-   * @returns Created deals
-   */
-  async batchCreateDeals(dealsInput: Array<Record<string, any>>): Promise<any[]> {
-    try {
-      const inputs = dealsInput.map(properties => ({
-        properties,
-        associations: []
-      }));
-
-      const response = await this.client.crm.deals.batchApi.create({ inputs });
-      
-      return this.formatResponse(response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties,
-        createdAt: deal.createdAt,
-        updatedAt: deal.updatedAt
-      })));
-    } catch (error) {
-      return this.handleApiError(error, 'batchCreateDeals');
-    }
-  }
-
-  /**
-   * Batch update deals
-   * 
-   * @param updates - Array of deal updates
-   * @returns Updated deals
-   */
-  async batchUpdateDeals(updates: Array<{ id: string; properties: Record<string, any> }>): Promise<any[]> {
-    try {
-      const inputs = updates.map(({ id, properties }) => ({
-        id,
-        properties
-      }));
-
-      const response = await this.client.crm.deals.batchApi.update({ inputs });
-      
-      return this.formatResponse(response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties,
-        createdAt: deal.createdAt,
-        updatedAt: deal.updatedAt
-      })));
-    } catch (error) {
-      return this.handleApiError(error, 'batchUpdateDeals');
-    }
-  }
 }
 
 /**

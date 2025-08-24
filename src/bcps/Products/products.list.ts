@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, ServiceConfig } from '../../core/types.js';
 import { ProductsService } from './products.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for list products tool
@@ -45,7 +46,7 @@ export const tool: ToolDefinition = {
       const limit = params.limit || 10;
       const products = await service.getRecentProducts(limit);
       
-      return {
+      const response = {
         message: `Found ${products.length} product(s)`,
         products: products.map(product => ({
           id: product.id,
@@ -56,12 +57,20 @@ export const tool: ToolDefinition = {
           createdAt: product.createdAt
         }))
       };
+      
+      return enhanceResponse(response, 'list', params, 'Products');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
+      
+      const errorResponse = {
         message: 'Failed to list products',
-        error: errorMessage
+        error: errorMessage,
+        details: {
+          requestedLimit: params.limit || 10
+        }
       };
+      
+      return enhanceResponse(errorResponse, 'list', params, 'Products', error instanceof Error ? error : undefined);
     }
   }
 };

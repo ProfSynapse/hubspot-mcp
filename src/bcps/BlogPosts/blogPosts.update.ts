@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema } from '../../core/types.js';
 import { createHubspotApiClient } from '../../core/hubspot-client.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for update blog post tool
@@ -25,6 +26,10 @@ const inputSchema: InputSchema = {
     slug: {
       type: 'string',
       description: 'URL slug for the blog post'
+    },
+    metaDescription: {
+      type: 'string',
+      description: 'Meta description for SEO (recommended for search engine optimization)'
     },
     postBody: {
       type: 'string',
@@ -58,6 +63,7 @@ export const tool: ToolDefinition = {
       const properties: Record<string, any> = {
         ...(params.name && { name: params.name }),
         ...(params.slug && { slug: params.slug }),
+        ...(params.metaDescription && { metaDescription: params.metaDescription }),
         ...(params.postBody && { postBody: params.postBody }),
         state: 'DRAFT' // Always ensure state remains DRAFT
       };
@@ -65,7 +71,7 @@ export const tool: ToolDefinition = {
       // Update blog post (always use draft-only to prevent publishing)
       const blogPost = await apiClient.updateBlogPostDraft(params.id, properties);
       
-      return {
+      const response = {
         message: 'Blog post draft updated successfully',
         blogPost: {
           id: blogPost.id,
@@ -76,12 +82,20 @@ export const tool: ToolDefinition = {
           url: `https://app.hubspot.com/content/${blogPost.contentGroupId}/blog-posts/${blogPost.id}`
         }
       };
+      
+      return enhanceResponse(response, 'update', params, 'BlogPosts');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
-        message: 'Failed to update blog post',
-        error: errorMessage
-      };
+      return enhanceResponse(
+        {
+          message: 'Failed to update blog post',
+          error: errorMessage
+        },
+        'update',
+        params,
+        'BlogPosts',
+        error instanceof Error ? error : undefined
+      );
     }
   }
 };

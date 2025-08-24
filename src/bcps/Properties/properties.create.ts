@@ -1,5 +1,6 @@
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { PropertiesService, PropertyInput } from './properties.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 const inputSchema: InputSchema = {
   type: 'object',
@@ -114,7 +115,7 @@ export const tool: ToolDefinition = {
       const { objectType, ...propertyData } = params;
       const property = await service.createProperty(objectType, propertyData as PropertyInput);
       
-      return {
+      const response = {
         message: `Created property ${property.name} for ${objectType}`,
         property,
         details: {
@@ -125,14 +126,24 @@ export const tool: ToolDefinition = {
           fieldType: property.fieldType
         }
       };
+      
+      return enhanceResponse(response, 'create', params, 'Properties');
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;
       }
-      throw new BcpError(
-        `Failed to create property for ${params.objectType}: ${error instanceof Error ? error.message : String(error)}`,
-        'API_ERROR',
-        500
+      
+      const errorResponse = {
+        message: `Failed to create property for ${params.objectType}`,
+        error: error instanceof Error ? error.message : String(error)
+      };
+      
+      return enhanceResponse(
+        errorResponse,
+        'create',
+        params,
+        'Properties',
+        error instanceof Error ? error : undefined
       );
     }
   }

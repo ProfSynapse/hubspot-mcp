@@ -17,6 +17,7 @@
 import { ToolDefinition, InputSchema, ServiceConfig, BcpError } from '../../core/types.js';
 import { EmailsService } from './emails.service.js';
 import { EmailCreateInput } from './emails.types.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for create email tool
@@ -32,7 +33,16 @@ const inputSchema: InputSchema = {
     },
     templateId: {
       type: 'string',
-      description: 'ID of the template to use for email creation (optional - current implementation does not work properly)'
+      description: 'ID of the template to use for email creation (required for HubSpot v3 API - you MUST use a template)'
+    },
+    campaignId: {
+      type: 'string',
+      description: 'Campaign ID to associate with the email (optional)'
+    },
+    type: {
+      type: 'string',
+      description: 'Email type - will be auto-assigned as BATCH_EMAIL by HubSpot if not specified',
+      enum: ['BATCH_EMAIL', 'AUTOMATED_EMAIL', 'BLOG_EMAIL', 'RSS_EMAIL', 'LEADNURTURING_EMAIL']
     },
     subject: {
       type: 'string',
@@ -73,7 +83,7 @@ const inputSchema: InputSchema = {
       properties: {}
     }
   },
-  required: ['name']
+  required: ['name', 'templateId']
 };
 
 /**
@@ -81,7 +91,7 @@ const inputSchema: InputSchema = {
  */
 export const tool: ToolDefinition = {
   name: 'create',
-  description: 'Create a new marketing email in HubSpot. Template ID is currently not working properly in the API. Does not include email sending functionality.',
+  description: 'Create a new marketing email in HubSpot. Template ID is required for v3 API. Campaign ID and type parameters are supported. Does not include email sending functionality.',
   inputSchema,
   handler: async (params: EmailCreateInput) => {
     const config: ServiceConfig = {
@@ -97,11 +107,13 @@ export const tool: ToolDefinition = {
         throw new BcpError('Email name is required', 'VALIDATION_ERROR', 400);
       }
       
-      // Note: templateId is no longer required due to API issues
+      if (!params.templateId) {
+        throw new BcpError('Template ID is required for email creation in HubSpot v3 API', 'VALIDATION_ERROR', 400);
+      }
 
       const result = await emailsService.createEmail(params);
       
-      return {
+      const response = {
         message: 'Email created successfully',
         email: {
           id: result.id,
@@ -114,16 +126,25 @@ export const tool: ToolDefinition = {
           updatedAt: result.metadata.updatedAt
         }
       };
+      
+      return enhanceResponse(response, 'create', params, 'Emails');
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;
       }
       
       const message = error instanceof Error ? error.message : String(error);
-      throw new BcpError(
-        `Failed to create email: ${message}`,
-        'API_ERROR',
-        500
+      const errorResponse = {
+        message: 'Failed to create email',
+        error: message
+      };
+      
+      return enhanceResponse(
+        errorResponse,
+        'create',
+        params,
+        'Emails',
+        error instanceof Error ? error : undefined
       );
     }
   }

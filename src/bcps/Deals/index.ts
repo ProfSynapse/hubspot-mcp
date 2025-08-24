@@ -11,8 +11,6 @@ import { tool as getTool } from './deals.get.js';
 import { tool as updateTool } from './deals.update.js';
 import { tool as searchTool } from './deals.search.js';
 import { tool as recentTool } from './deals.recent.js';
-import { tool as batchCreateTool } from './deals.batchCreate.js';
-import { tool as batchUpdateTool } from './deals.batchUpdate.js';
 
 /**
  * Deals BCP definition
@@ -26,8 +24,6 @@ export const dealsBcp: BCP = {
     getTool,
     updateTool,
     searchTool,
-    recentTool,
-    batchCreateTool,
-    batchUpdateTool
+    recentTool
   ]
 };

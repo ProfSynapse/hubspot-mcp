@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, ServiceConfig } from '../../core/types.js';
 import { ProductsService } from './products.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for get product tool
@@ -42,7 +43,7 @@ export const tool: ToolDefinition = {
       // Get product
       const product = await service.getProduct(params.id);
       
-      return {
+      const response = {
         message: 'Product retrieved successfully',
         product: {
           id: product.id,
@@ -54,12 +55,40 @@ export const tool: ToolDefinition = {
           updatedAt: product.updatedAt
         }
       };
+      
+      return enhanceResponse(response, 'get', params, 'Products');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
+      
+      // Check if this is a 404 error (product not found)
+      const isNotFound = errorMessage.includes('not found') || 
+                        errorMessage.includes('404') ||
+                        errorMessage.includes('Not Found');
+      
+      if (isNotFound) {
+        const notFoundResponse = {
+          message: 'Product not found',
+          error: errorMessage,
+          details: {
+            statusCode: 404,
+            productId: params.id,
+            suggestion: 'Please verify the product ID is correct and the product exists in HubSpot'
+          }
+        };
+        
+        return enhanceResponse(notFoundResponse, 'get', params, 'Products', error instanceof Error ? error : undefined);
+      }
+      
+      // Handle other errors
+      const errorResponse = {
         message: 'Failed to get product',
-        error: errorMessage
+        error: errorMessage,
+        details: {
+          productId: params.id
+        }
       };
+      
+      return enhanceResponse(errorResponse, 'get', params, 'Products', error instanceof Error ? error : undefined);
     }
   }
 };

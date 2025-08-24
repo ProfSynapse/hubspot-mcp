@@ -66,7 +66,16 @@ export class EmailsService extends HubspotBaseService {
       if (input.folderId) {
         requestBody.folderId = input.folderId;
       }
-      // Note: templateId is not included as it doesn't work properly in current API version
+      // Add required templateId and optional campaignId, type parameters
+      if (input.templateId) {
+        requestBody.templateId = input.templateId;
+      }
+      if ('campaignId' in input && input.campaignId) {
+        requestBody.campaignId = input.campaignId;
+      }
+      if ('type' in input && input.type) {
+        requestBody.type = input.type;
+      }
       
       const response = await this.client.apiRequest({
         method: 'POST',
@@ -114,12 +123,45 @@ export class EmailsService extends HubspotBaseService {
     this.validateRequired({ id }, ['id']);
 
     try {
-      const properties = this.formatEmailProperties(input);
+      // Format update properties directly at root level like create operation
+      const requestBody: any = {};
+
+      // Add fields at root level if provided (similar to create operation)
+      if (input.name) {
+        requestBody.name = input.name;
+      }
+      if (input.subject) {
+        requestBody.subject = input.subject;
+      }
+      if (input.from?.name) {
+        requestBody.fromName = input.from.name;
+      }
+      if (input.from?.email) {
+        requestBody.fromEmail = input.from.email;
+      }
+      if (input.replyTo) {
+        requestBody.replyTo = input.replyTo;
+      }
+      if (input.previewText) {
+        requestBody.previewText = input.previewText;
+      }
+      if (input.state) {
+        requestBody.state = input.state;
+      }
+      
+      // Add any additional metadata properties at root level
+      if (input.metadata) {
+        Object.entries(input.metadata).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            requestBody[key] = String(value);
+          }
+        });
+      }
       
       const response = await this.client.apiRequest({
         method: 'PATCH',
         path: `/marketing/v3/emails/${id}`,
-        body: { properties }
+        body: requestBody
       });
 
       const data = await response.json();

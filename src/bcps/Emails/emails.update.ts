@@ -17,6 +17,7 @@
 import { ToolDefinition, InputSchema, ServiceConfig, BcpError } from '../../core/types.js';
 import { EmailsService } from './emails.service.js';
 import { EmailUpdateInput } from './emails.types.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for update email tool
@@ -116,7 +117,7 @@ export const tool: ToolDefinition = {
 
       const result = await emailsService.updateEmail(id, updateProperties);
       
-      return {
+      const response = {
         message: 'Email updated successfully',
         email: {
           id: result.id,
@@ -128,6 +129,8 @@ export const tool: ToolDefinition = {
           updatedAt: result.metadata.updatedAt
         }
       };
+      
+      return enhanceResponse(response, 'update', params, 'Emails');
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;
@@ -137,17 +140,24 @@ export const tool: ToolDefinition = {
       
       // Handle specific API error cases
       if (message.includes('404') || message.includes('not found')) {
-        throw new BcpError(
-          `Email with ID ${params.id} not found`,
-          'NOT_FOUND',
-          404
-        );
+        const notFoundResponse = {
+          message: `Email with ID ${params.id} not found`,
+          error: message
+        };
+        return enhanceResponse(notFoundResponse, 'update', params, 'Emails', error instanceof Error ? error : undefined);
       }
       
-      throw new BcpError(
-        `Failed to update email: ${message}`,
-        'API_ERROR',
-        500
+      const errorResponse = {
+        message: 'Failed to update email',
+        error: message
+      };
+      
+      return enhanceResponse(
+        errorResponse,
+        'update',
+        params,
+        'Emails',
+        error instanceof Error ? error : undefined
       );
     }
   }

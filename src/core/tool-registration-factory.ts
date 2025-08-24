@@ -49,8 +49,8 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       description: 'HubSpot object association management with batch operations'
     },
     Deals: {
-      operations: ['create', 'get', 'update', 'search', 'recent', 'batchCreate', 'batchUpdate'],
-      description: 'HubSpot deal management with CRUD operations, search, and batch processing'
+      operations: ['create', 'get', 'update', 'search', 'recent'],
+      description: 'HubSpot deal management with CRUD operations and search'
     },
     Products: {
       operations: ['list', 'search', 'get'],
@@ -193,8 +193,6 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
             limit: z.number().optional(),
             after: z.number().optional()
           }).optional().describe('Custom search parameters'),
-          deals: z.array(z.any()).optional().describe('Batch create deals'),
-          updates: z.array(z.any()).optional().describe('Batch update deals')
         };
 
       case 'Products':

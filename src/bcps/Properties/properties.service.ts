@@ -310,26 +310,31 @@ export class PropertiesService extends HubspotBaseService {
    * Transform property API response to standard format
    */
   private transformPropertyResponse(property: any): PropertyResponse {
+    // Debug: Log the raw property response to understand the structure
+    if (!property) {
+      throw new BcpError('Property response is null or undefined', 'API_ERROR', 500);
+    }
+
     return {
-      name: property.name || '',
-      label: property.label || '',
-      description: property.description || '',
-      groupName: property.groupName || '',
-      type: property.type || '',
-      fieldType: property.fieldType || '',
+      name: property.name ?? '',
+      label: property.label ?? '',
+      description: property.description ?? '',
+      groupName: property.groupName ?? '',
+      type: property.type ?? '',
+      fieldType: property.fieldType ?? '',
       options: property.options?.map((option: any) => ({
-        label: option.label || '',
-        value: option.value || '',
-        displayOrder: option.displayOrder || 0,
-        hidden: option.hidden || false
+        label: option.label ?? '',
+        value: option.value ?? '',
+        displayOrder: option.displayOrder ?? 0,
+        hidden: option.hidden ?? false
       })),
-      formField: property.formField || false,
-      displayOrder: property.displayOrder || 0,
-      hidden: property.hidden || false,
-      hasUniqueValue: property.hasUniqueValue || false,
-      calculationFormula: property.calculationFormula,
-      createdAt: property.createdAt ? new Date(property.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: property.updatedAt ? new Date(property.updatedAt).toISOString() : new Date().toISOString(),
+      formField: property.formField ?? true, // Default should be true, not false
+      displayOrder: property.displayOrder ?? -1, // Default should be -1, not 0
+      hidden: property.hidden ?? false,
+      hasUniqueValue: property.hasUniqueValue ?? false,
+      calculationFormula: property.calculationFormula ?? undefined,
+      createdAt: property.createdAt || new Date().toISOString(),
+      updatedAt: property.updatedAt || new Date().toISOString(),
       createdUserId: property.createdUserId,
       updatedUserId: property.updatedUserId
     };
@@ -339,11 +344,15 @@ export class PropertiesService extends HubspotBaseService {
    * Transform property group API response to standard format
    */
   private transformPropertyGroupResponse(group: any): PropertyGroupResponse {
+    if (!group) {
+      throw new BcpError('Property group response is null or undefined', 'API_ERROR', 500);
+    }
+
     return {
-      name: group.name || '',
-      displayName: group.displayName || '',
-      displayOrder: group.displayOrder || 0,
-      properties: group.properties || []
+      name: group.name ?? '',
+      displayName: group.displayName ?? '',
+      displayOrder: group.displayOrder ?? -1, // Default should be -1, not 0
+      properties: group.properties ?? []
     };
   }
 }

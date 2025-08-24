@@ -92,8 +92,28 @@ export class ProductsService extends HubspotBaseService {
         updatedAt: new Date(response.updatedAt).toISOString()
       };
     } catch (error) {
+      // Handle 404 errors specifically for better error reporting
+      if (this.isNotFoundError(error)) {
+        throw new Error(`Product with ID '${id}' not found. Please verify the product ID and try again.`);
+      }
       throw this.handleApiError(error, 'Failed to get product');
     }
+  }
+
+  /**
+   * Check if error is a 404 Not Found error
+   */
+  private isNotFoundError(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'status' in error) {
+      return (error as any).status === 404;
+    }
+    
+    // Check error message for common 404 patterns
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('404') || 
+           message.includes('not found') || 
+           message.includes('Not Found') ||
+           message.includes('does not exist');
   }
 
   /**

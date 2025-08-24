@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, ServiceConfig } from '../../core/types.js';
 import { ProductsService } from './products.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Input schema for search products tool
@@ -42,7 +43,7 @@ export const tool: ToolDefinition = {
       // Search products
       const products = await service.searchProductsByName(params.name);
       
-      return {
+      const response = {
         message: `Found ${products.length} product(s) matching "${params.name}"`,
         products: products.map(product => ({
           id: product.id,
@@ -53,12 +54,20 @@ export const tool: ToolDefinition = {
           createdAt: product.createdAt
         }))
       };
+      
+      return enhanceResponse(response, 'search', params, 'Products');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      return {
+      
+      const errorResponse = {
         message: 'Failed to search products',
-        error: errorMessage
+        error: errorMessage,
+        details: {
+          searchTerm: params.name
+        }
       };
+      
+      return enhanceResponse(errorResponse, 'search', params, 'Products', error instanceof Error ? error : undefined);
     }
   }
 };

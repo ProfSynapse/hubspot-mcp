@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, ServiceConfig } from '../../core/types.js';
 import { QuotesService } from './quotes.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Valid HubSpot quote status values
@@ -222,10 +223,18 @@ export const tool: ToolDefinition = {
         Object.assign(properties, updateParams.additionalProperties);
       }
       
+      // Check if we have any properties to update
+      if (Object.keys(properties).length === 0) {
+        return {
+          message: 'No properties provided for update',
+          error: 'At least one property must be provided to update the quote'
+        };
+      }
+      
       // Update quote
       const quote = await service.updateQuote(id, properties);
       
-      return {
+      const response = {
         message: 'Quote updated successfully',
         quote: {
           id: quote.id,
@@ -233,6 +242,8 @@ export const tool: ToolDefinition = {
           updatedAt: quote.updatedAt
         }
       };
+      
+      return enhanceResponse(response, 'update', params, 'Quotes');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {

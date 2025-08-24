@@ -1,5 +1,6 @@
 import { ToolDefinition, InputSchema, BcpError, ServiceConfig } from '../../core/types.js';
 import { PropertiesService, PropertyGroupInput } from './properties.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 const inputSchema: InputSchema = {
   type: 'object',
@@ -52,9 +53,19 @@ export const tool: ToolDefinition = {
 
     try {
       const { objectType, ...groupData } = params;
+      
+      // Add parameter validation
+      if (!params.name || !params.displayName) {
+        const errorResponse = {
+          message: 'Missing required parameters for property group creation',
+          error: 'Both name and displayName are required'
+        };
+        return enhanceResponse(errorResponse, 'createGroup', params, 'Properties');
+      }
+      
       const group = await service.createPropertyGroup(objectType, groupData as PropertyGroupInput);
       
-      return {
+      const response = {
         message: `Created property group ${group.name} for ${objectType}`,
         propertyGroup: group,
         details: {
@@ -64,14 +75,24 @@ export const tool: ToolDefinition = {
           displayOrder: group.displayOrder
         }
       };
+      
+      return enhanceResponse(response, 'createGroup', params, 'Properties');
     } catch (error) {
       if (error instanceof BcpError) {
         throw error;
       }
-      throw new BcpError(
-        `Failed to create property group for ${params.objectType}: ${error instanceof Error ? error.message : String(error)}`,
-        'API_ERROR',
-        500
+      
+      const errorResponse = {
+        message: `Failed to create property group for ${params.objectType}`,
+        error: error instanceof Error ? error.message : String(error)
+      };
+      
+      return enhanceResponse(
+        errorResponse,
+        'createGroup',
+        params,
+        'Properties',
+        error instanceof Error ? error : undefined
       );
     }
   }

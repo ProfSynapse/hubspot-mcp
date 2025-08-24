@@ -881,7 +881,7 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotDeal',
       {
-        operation: z.enum(['create', 'get', 'update', 'search', 'recent', 'batchCreate', 'batchUpdate']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'search', 'recent']).describe('Operation to perform'),
         
         // Parameters for create operation
         dealname: z.string().optional().describe('Deal name (required for create operation)'),
@@ -916,27 +916,6 @@ export class HubspotBCPServer {
         }).optional().describe('Custom search request (for advanced searches)'),
         
         // Parameters for batch operations
-        deals: z.array(z.object({
-          dealname: z.string(),
-          pipeline: z.string().optional(),
-          dealstage: this.createDealStageSchema().optional(),
-          amount: z.string().optional(),
-          closedate: z.string().optional(),
-          description: z.string().optional(),
-          hubspot_owner_id: z.string().optional()
-        })).optional().describe('Array of deals to create (for batchCreate)'),
-        updates: z.array(z.object({
-          id: z.string(),
-          properties: z.object({
-            dealname: z.string().optional(),
-            pipeline: z.string().optional(),
-            dealstage: this.createDealStageSchema().optional(),
-            amount: z.string().optional(),
-            closedate: z.string().optional(),
-            description: z.string().optional(),
-            hubspot_owner_id: z.string().optional()
-          })
-        })).optional().describe('Array of deal updates (for batchUpdate)'),
         
         // Common parameters
         limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of results (for search and recent operations)'),
@@ -971,24 +950,6 @@ export class HubspotBCPServer {
               }
               if (params.searchType === 'custom' && !params.customSearch) {
                 throw new Error('customSearch object is required for custom search');
-              }
-              break;
-            case 'batchCreate':
-              if (!params.deals || params.deals.length === 0) {
-                throw new Error('Deals array is required for batchCreate operation');
-              }
-              params.deals.forEach((deal: any, index: number) => {
-                if (!deal.dealname) {
-                  throw new Error(`Deal name is required for deal ${index + 1} in batchCreate operation`);
-                }
-                if (!deal.dealstage) {
-                  throw new Error(`Deal stage is required for deal ${index + 1} in batchCreate operation`);
-                }
-              });
-              break;
-            case 'batchUpdate':
-              if (!params.updates || params.updates.length === 0) {
-                throw new Error('Updates array is required for batchUpdate operation');
               }
               break;
           }
@@ -1051,13 +1012,6 @@ export class HubspotBCPServer {
               result = await this.apiClient.getRecentDeals(params.limit);
               break;
               
-            case 'batchCreate':
-              result = await this.apiClient.batchCreateDeals(params.deals as any[]);
-              break;
-              
-            case 'batchUpdate':
-              result = await this.apiClient.batchUpdateDeals(params.updates as any[]);
-              break;
               
             default:
               throw new Error(`Unknown operation: ${operation}`);

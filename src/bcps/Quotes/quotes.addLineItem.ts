@@ -7,6 +7,7 @@
 
 import { ToolDefinition, InputSchema, ServiceConfig } from '../../core/types.js';
 import { QuotesService, LineItemPropertiesInput } from './quotes.service.js';
+import { enhanceResponse } from '../../core/response-enhancer.js';
 
 /**
  * Valid recurring billing periods
@@ -32,7 +33,8 @@ const inputSchema: InputSchema = {
     },
     name: {
       type: 'string',
-      description: 'Line item name/description (required)'
+      description: 'Line item name/description (required) - This identifies the product or service being quoted',
+      minLength: 1
     },
     productId: {
       type: 'string',
@@ -86,6 +88,21 @@ export const tool: ToolDefinition = {
   inputSchema,
   handler: async (params) => {
     try {
+      // Validate required parameters
+      if (!params.name || typeof params.name !== 'string' || params.name.trim().length === 0) {
+        return {
+          message: 'Failed to add line item to quote',
+          error: 'Missing required parameter: name must be a non-empty string'
+        };
+      }
+      
+      if (!params.quoteId || typeof params.quoteId !== 'string' || params.quoteId.trim().length === 0) {
+        return {
+          message: 'Failed to add line item to quote', 
+          error: 'Missing required parameter: quoteId must be a non-empty string'
+        };
+      }
+      
       // Get API key from environment
       const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
       
@@ -110,7 +127,7 @@ export const tool: ToolDefinition = {
       // Add line item to quote
       const lineItem = await service.addLineItemToQuote(params.quoteId, lineItemProperties);
       
-      return {
+      const response = {
         message: 'Line item added successfully',
         lineItem: {
           id: lineItem.id,
@@ -122,6 +139,8 @@ export const tool: ToolDefinition = {
         },
         quoteId: params.quoteId
       };
+      
+      return enhanceResponse(response, 'addLineItem', params, 'Quotes');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
