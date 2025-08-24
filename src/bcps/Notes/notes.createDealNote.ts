@@ -61,6 +61,14 @@ export const tool: ToolDefinition = {
     const notesService = new NotesService(tempConfig);
     await notesService.init();
 
+    if (!params.dealId || typeof params.dealId !== 'string' || params.dealId.trim().length === 0) {
+      throw new BcpError(
+        'Missing required parameter: dealId (must be non-empty string)',
+        'VALIDATION_ERROR',
+        400
+      );
+    }
+
     if (!params.content || typeof params.content !== 'string' || params.content.trim().length === 0) {
       throw new BcpError(
         'Missing required parameter: content (must be non-empty string)',
