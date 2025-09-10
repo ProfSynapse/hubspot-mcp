@@ -78,7 +78,6 @@
     }
   ],
   "compatibility": {
-    "claude_desktop": ">=0.12.0",
     "node": ">=18.0.0"
   }
 }

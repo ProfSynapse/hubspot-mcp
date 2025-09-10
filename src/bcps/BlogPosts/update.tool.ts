@@ -32,8 +32,8 @@ const inputSchema: InputSchema = {
     },
     updateDraftOnly: {
       type: 'boolean',
-      description: 'Whether to update only the draft version (true) or publish changes immediately (false)',
-      default: false
+      description: 'Whether to update only the draft version (true) or update the published version (false) - publishing is not allowed',
+      default: true
     }
   },
   required: ['id']
@@ -54,23 +54,19 @@ export const tool: ToolDefinition = {
       // Create API client
       const apiClient = createHubspotApiClient(apiKey);
       
-      // Prepare blog post properties
+      // Prepare blog post properties (force draft state)
       const properties: Record<string, any> = {
         ...(params.name && { name: params.name }),
         ...(params.slug && { slug: params.slug }),
-        ...(params.postBody && { postBody: params.postBody })
+        ...(params.postBody && { postBody: params.postBody }),
+        state: 'DRAFT' // Always ensure state remains DRAFT
       };
       
-      // Update blog post
-      let blogPost;
-      if (params.updateDraftOnly) {
-        blogPost = await apiClient.updateBlogPostDraft(params.id, properties);
-      } else {
-        blogPost = await apiClient.updateBlogPost(params.id, properties);
-      }
+      // Update blog post (always use draft-only to prevent publishing)
+      const blogPost = await apiClient.updateBlogPostDraft(params.id, properties);
       
       return {
-        message: `Blog post ${params.updateDraftOnly ? 'draft ' : ''}updated successfully`,
+        message: 'Blog post draft updated successfully',
         blogPost: {
           id: blogPost.id,
           name: blogPost.name,

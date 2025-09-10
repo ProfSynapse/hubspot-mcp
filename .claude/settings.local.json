@@ -27,7 +27,8 @@
       "Bash(mv:*)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test node -e \"\nconst { PropertiesService } = require(''./build/bcps/Properties/properties.service.js'');\n\n// Create a minimal test\nconst service = new PropertiesService({ hubspotAccessToken: ''test'' });\nconsole.log(''PropertiesService instance created:'', !!service);\nconsole.log(''Available methods:'', Object.getOwnPropertyNames(Object.getPrototypeOf(service)).filter(m => typeof service[m] === ''function''));\n\")",
       "Bash(source:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebSearch"
     ],
     "deny": []
   },
