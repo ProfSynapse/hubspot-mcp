@@ -402,40 +402,135 @@ export class HubspotApiClient {
    */
   async searchContactsByName(name: string, limit: number = 10): Promise<any[]> {
     try {
+      // Trim and normalize the search input
+      const searchTerm = name.trim().toLowerCase();
+      
       // Split name into first and last name parts
-      const nameParts = name.split(' ');
+      const nameParts = searchTerm.split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
       
-      // Build filter groups for first name and last name
-      const filterGroups = [];
+      // Strategy 1: Try exact match first (if full name provided)
+      if (firstName && lastName) {
+        // Use a single filter group with multiple filters (AND logic)
+        const exactMatchResponse = await this.client.crm.contacts.searchApi.doSearch({
+          filterGroups: [{
+            filters: [
+              {
+                propertyName: 'firstname',
+                operator: 'EQ',
+                value: firstName
+              },
+              {
+                propertyName: 'lastname',
+                operator: 'EQ',
+                value: lastName
+              }
+            ]
+          }],
+          sorts: [],
+          after: 0,
+          limit,
+          properties: ['email', 'firstname', 'lastname', 'company', 'phone']
+        });
+        
+        // If we found exact matches, return them
+        if (exactMatchResponse.results.length > 0) {
+          return this.formatResponse(exactMatchResponse.results.map(contact => ({
+            id: contact.id,
+            properties: contact.properties,
+            createdAt: contact.createdAt,
+            updatedAt: contact.updatedAt
+          })));
+        }
+      }
+      
+      // Strategy 2: Use token-based search with AND logic for partial matches
+      const filters = [];
       
       if (firstName) {
-        filterGroups.push({
-          filters: [{
-            propertyName: 'firstname',
-            operator: 'CONTAINS_TOKEN' as any,
-            value: firstName
-          }]
+        filters.push({
+          propertyName: 'firstname',
+          operator: 'CONTAINS_TOKEN' as any,
+          value: firstName
         });
       }
       
       if (lastName) {
-        filterGroups.push({
-          filters: [{
-            propertyName: 'lastname',
-            operator: 'CONTAINS_TOKEN' as any,
-            value: lastName
-          }]
+        filters.push({
+          propertyName: 'lastname',
+          operator: 'CONTAINS_TOKEN' as any,
+          value: lastName
         });
       }
       
+      // If only one name part, search both first and last name fields
+      if (nameParts.length === 1) {
+        // Search in both firstname and lastname using OR logic for single name
+        const response = await this.client.crm.contacts.searchApi.doSearch({
+          filterGroups: [
+            {
+              filters: [{
+                propertyName: 'firstname',
+                operator: 'CONTAINS_TOKEN' as any,
+                value: firstName
+              }]
+            },
+            {
+              filters: [{
+                propertyName: 'lastname',
+                operator: 'CONTAINS_TOKEN' as any,
+                value: firstName
+              }]
+            }
+          ],
+          sorts: [],
+          after: 0,
+          limit: limit * 2, // Get more results to filter later
+          properties: ['email', 'firstname', 'lastname', 'company', 'phone']
+        });
+        
+        // Client-side relevance scoring for single name searches
+        const scoredResults = response.results.map(contact => {
+          const contactFirstName = (contact.properties.firstname || '').toLowerCase();
+          const contactLastName = (contact.properties.lastname || '').toLowerCase();
+          
+          // Higher score for exact matches
+          let score = 0;
+          if (contactFirstName === firstName) score += 10;
+          else if (contactFirstName.startsWith(firstName)) score += 5;
+          else if (contactFirstName.includes(firstName)) score += 2;
+          
+          if (contactLastName === firstName) score += 10;
+          else if (contactLastName.startsWith(firstName)) score += 5;
+          else if (contactLastName.includes(firstName)) score += 2;
+          
+          return { contact, score };
+        });
+        
+        // Sort by score and return top results
+        const sortedResults = scoredResults
+          .sort((a, b) => b.score - a.score)
+          .slice(0, limit)
+          .map(item => ({
+            id: item.contact.id,
+            properties: item.contact.properties,
+            createdAt: item.contact.createdAt,
+            updatedAt: item.contact.updatedAt
+          }));
+        
+        return this.formatResponse(sortedResults);
+      }
+      
+      // For multiple name parts, use AND logic (single filter group)
       const response = await this.client.crm.contacts.searchApi.doSearch({
-        filterGroups,
+        filterGroups: [{
+          filters
+        }],
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname']
+        properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
       
       return this.formatResponse(response.results.map(contact => ({
