@@ -594,7 +594,8 @@ export class HubspotApiClient {
             );
             
             // If there are associated companies, get the primary one
-            if (contactWithAssoc.associations?.companies?.results?.length > 0) {
+            if (contactWithAssoc.associations?.companies?.results && 
+                contactWithAssoc.associations.companies.results.length > 0) {
               const primaryCompanyId = contactWithAssoc.associations.companies.results[0].id;
               
               try {
