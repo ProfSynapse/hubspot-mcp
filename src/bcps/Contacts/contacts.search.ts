@@ -54,12 +54,14 @@ export const tool: ToolDefinition = {
       if (params.searchType === 'email') {
         contacts = await apiClient.searchContactsByEmail(
           params.searchTerm,
-          params.limit || 10
+          params.limit || 10,
+          true  // Include associations to get company data
         );
       } else {
         contacts = await apiClient.searchContactsByName(
           params.searchTerm,
-          params.limit || 10
+          params.limit || 10,
+          true  // Include associations to get company data
         );
       }
       
@@ -69,8 +71,12 @@ export const tool: ToolDefinition = {
         email: contact.properties.email,
         firstName: contact.properties.firstname,
         lastName: contact.properties.lastname,
-        company: contact.properties.company,
-        createdAt: contact.createdAt
+        company: contact.properties.company || contact.properties.associatedCompanyName || null,
+        associatedCompanyId: contact.properties.associatedCompanyId || null,
+        associatedCompanyName: contact.properties.associatedCompanyName || null,
+        phone: contact.properties.phone || null,
+        createdAt: contact.createdAt,
+        associations: contact.associations || null
       }));
       
       return {

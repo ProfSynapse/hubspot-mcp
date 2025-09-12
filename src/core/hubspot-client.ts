@@ -364,9 +364,10 @@ export class HubspotApiClient {
    * 
    * @param email - Email to search for
    * @param limit - Maximum number of results
+   * @param includeAssociations - Whether to fetch associated companies (requires additional API calls)
    * @returns Matching contacts
    */
-  async searchContactsByEmail(email: string, limit: number = 10): Promise<any[]> {
+  async searchContactsByEmail(email: string, limit: number = 10, includeAssociations: boolean = false): Promise<any[]> {
     try {
       const response = await this.client.crm.contacts.searchApi.doSearch({
         filterGroups: [{
@@ -379,15 +380,22 @@ export class HubspotApiClient {
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname']
+        properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
       
-      return this.formatResponse(response.results.map(contact => ({
+      let results = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
         createdAt: contact.createdAt,
         updatedAt: contact.updatedAt
-      })));
+      }));
+      
+      // Optionally fetch associated companies
+      if (includeAssociations && results.length > 0) {
+        results = await this.enrichContactsWithCompanies(results);
+      }
+      
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByEmail');
     }
@@ -398,9 +406,10 @@ export class HubspotApiClient {
    * 
    * @param name - Name to search for
    * @param limit - Maximum number of results
+   * @param includeAssociations - Whether to fetch associated companies (requires additional API calls)
    * @returns Matching contacts
    */
-  async searchContactsByName(name: string, limit: number = 10): Promise<any[]> {
+  async searchContactsByName(name: string, limit: number = 10, includeAssociations: boolean = false): Promise<any[]> {
     try {
       // Trim and normalize the search input
       const searchTerm = name.trim().toLowerCase();
@@ -436,12 +445,19 @@ export class HubspotApiClient {
         
         // If we found exact matches, return them
         if (exactMatchResponse.results.length > 0) {
-          return this.formatResponse(exactMatchResponse.results.map(contact => ({
+          let results = exactMatchResponse.results.map(contact => ({
             id: contact.id,
             properties: contact.properties,
             createdAt: contact.createdAt,
             updatedAt: contact.updatedAt
-          })));
+          }));
+          
+          // Optionally fetch associated companies
+          if (includeAssociations) {
+            results = await this.enrichContactsWithCompanies(results);
+          }
+          
+          return this.formatResponse(results);
         }
       }
       
@@ -509,7 +525,7 @@ export class HubspotApiClient {
         });
         
         // Sort by score and return top results
-        const sortedResults = scoredResults
+        let sortedResults = scoredResults
           .sort((a, b) => b.score - a.score)
           .slice(0, limit)
           .map(item => ({
@@ -518,6 +534,11 @@ export class HubspotApiClient {
             createdAt: item.contact.createdAt,
             updatedAt: item.contact.updatedAt
           }));
+        
+        // Optionally fetch associated companies
+        if (includeAssociations && sortedResults.length > 0) {
+          sortedResults = await this.enrichContactsWithCompanies(sortedResults);
+        }
         
         return this.formatResponse(sortedResults);
       }
@@ -533,14 +554,77 @@ export class HubspotApiClient {
         properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
       
-      return this.formatResponse(response.results.map(contact => ({
+      let results = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
         createdAt: contact.createdAt,
         updatedAt: contact.updatedAt
-      })));
+      }));
+      
+      // Optionally fetch associated companies
+      if (includeAssociations && results.length > 0) {
+        results = await this.enrichContactsWithCompanies(results);
+      }
+      
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByName');
+    }
+  }
+  
+  /**
+   * Enrich contacts with their associated company data
+   * 
+   * @param contacts - Array of contacts to enrich
+   * @returns Contacts with company associations
+   */
+  private async enrichContactsWithCompanies(contacts: any[]): Promise<any[]> {
+    try {
+      // Fetch each contact with associations
+      const enrichedContacts = await Promise.all(
+        contacts.map(async (contact) => {
+          try {
+            // Get the contact with associations
+            const contactWithAssoc = await this.client.crm.contacts.basicApi.getById(
+              contact.id,
+              undefined,  // properties
+              undefined,  // propertiesWithHistory
+              ['companies'],  // associations
+              false  // archived
+            );
+            
+            // If there are associated companies, get the primary one
+            if (contactWithAssoc.associations?.companies?.results?.length > 0) {
+              const primaryCompanyId = contactWithAssoc.associations.companies.results[0].id;
+              
+              try {
+                // Fetch the company details
+                const company = await this.client.crm.companies.basicApi.getById(primaryCompanyId);
+                
+                // Add company info to the contact properties
+                contact.properties.associatedCompanyId = primaryCompanyId;
+                contact.properties.associatedCompanyName = company.properties.name || '';
+                contact.associations = contactWithAssoc.associations;
+              } catch (companyError) {
+                // If we can't fetch the company, at least include the ID
+                contact.properties.associatedCompanyId = primaryCompanyId;
+                contact.associations = contactWithAssoc.associations;
+              }
+            }
+          } catch (assocError) {
+            // If we can't fetch associations, return the contact as-is
+            console.error(`Failed to fetch associations for contact ${contact.id}:`, assocError);
+          }
+          
+          return contact;
+        })
+      );
+      
+      return enrichedContacts;
+    } catch (error) {
+      // If enrichment fails, return the original contacts
+      console.error('Failed to enrich contacts with companies:', error);
+      return contacts;
     }
   }
 
