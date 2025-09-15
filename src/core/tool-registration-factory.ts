@@ -18,6 +18,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { BcpDelegator } from './bcp-tool-delegator.js';
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { ContextRegistry, SchemaContext } from './context/index.js';
 
 export interface ToolRegistrationFactory {
   createDomainTool(domain: string, delegator: BcpDelegator): DomainToolConfig;
@@ -31,6 +32,7 @@ interface DomainToolConfig {
 }
 
 export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
+  constructor(private contextRegistry?: ContextRegistry) {}
   private static readonly DOMAIN_CONFIGS: Record<string, DomainConfig> = {
     Companies: {
       operations: ['create', 'get', 'update', 'search', 'recent'],
@@ -96,7 +98,10 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
     // Domain-specific parameter schemas
     const domainParams = this.getDomainSpecificParams(domain);
 
-    return z.object({ ...baseSchema, ...domainParams });
+    // Apply dynamic context if available
+    const enrichedParams = this.applyDynamicContext(domain, domainParams);
+
+    return z.object({ ...baseSchema, ...enrichedParams });
   }
 
   private getDomainSpecificParams(domain: string): Record<string, z.ZodType<any>> {
@@ -290,6 +295,48 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
       default:
         return commonParams;
     }
+  }
+
+  /**
+   * Apply dynamic context from providers to enhance schema parameters
+   */
+  private applyDynamicContext(domain: string, baseParams: Record<string, z.ZodType<any>>): Record<string, z.ZodType<any>> {
+    if (!this.contextRegistry || !this.contextRegistry.isInitialized()) {
+      return baseParams;
+    }
+
+    const enrichedParams = { ...baseParams };
+    const contexts = this.contextRegistry.getContextForDomain(domain);
+
+    for (const context of contexts) {
+      if (context.values.length > 0) {
+        // Extract just the values for the enum
+        const enumValues = context.values.map(v => v.value) as [string, ...string[]];
+
+        // Build a descriptive message showing options with labels
+        const optionsList = context.values
+          .slice(0, 3) // Show first 3 options to keep description manageable
+          .map(v => `${v.value}="${v.label}"`)
+          .join(', ');
+
+        const moreCount = context.values.length - 3;
+        const optionsText = moreCount > 0 ? `${optionsList} (+${moreCount} more)` : optionsList;
+
+        const description = `${context.description || `Available ${context.field} options`}. Values: ${optionsText}`;
+
+        // Create enum schema
+        let enumSchema = z.enum(enumValues).describe(description);
+
+        // Make required if specified in context
+        if (!context.required) {
+          enumSchema = enumSchema.optional() as any;
+        }
+
+        enrichedParams[context.field] = enumSchema;
+      }
+    }
+
+    return enrichedParams;
   }
 
   private createDomainHandler(domain: string, delegator: BcpDelegator) {

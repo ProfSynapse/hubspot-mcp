@@ -29,6 +29,7 @@ import { isInitializeRequest, JSONRPCMessage } from '@modelcontextprotocol/sdk/t
 // Import our new delegation architecture
 import { BcpToolDelegator } from './core/bcp-tool-delegator.js';
 import { BcpToolRegistrationFactory } from './core/tool-registration-factory.js';
+import { ContextRegistry, DealPipelineContextProvider } from './core/context/index.js';
 
 // Import existing configuration and utilities
 import { loadConfig, validateConfiguration, isDevelopment } from './config/environment.js';
@@ -171,10 +172,27 @@ async function getOrCreateMCPServer(): Promise<{ server: McpServer; delegator: B
     }
   });
 
+  // Create and initialize context registry
+  logger.info('🔧 Initializing context providers...');
+  const contextRegistry = new ContextRegistry();
+
+  // Register context providers
+  contextRegistry.register(new DealPipelineContextProvider());
+
+  // Initialize all context providers (this will fetch pipeline data)
+  try {
+    await contextRegistry.initializeAll(apiKey);
+    const stats = contextRegistry.getStats();
+    logger.info(`✅ Context providers initialized: ${stats.initializedProviders}/${stats.totalProviders}`);
+  } catch (error) {
+    logger.error('❌ Failed to initialize context providers:', error);
+    throw error;
+  }
+
   // Create delegation architecture components
   const delegator = new BcpToolDelegator();
-  const toolFactory = new BcpToolRegistrationFactory();
-  
+  const toolFactory = new BcpToolRegistrationFactory(contextRegistry);
+
   // Register all domain tools using the delegation pattern
   try {
     await toolFactory.registerAllTools(server, delegator);

@@ -20,11 +20,11 @@ const inputSchema: InputSchema = {
     },
     pipeline: {
       type: 'string',
-      description: 'Pipeline ID the deal belongs to'
+      description: 'Pipeline ID the deal belongs to (required)'
     },
     dealstage: {
       type: 'string',
-      description: 'Deal stage ID within the pipeline'
+      description: 'Deal stage ID within the pipeline (required)'
     },
     amount: {
       type: 'string',
@@ -48,7 +48,7 @@ const inputSchema: InputSchema = {
       properties: {}
     }
   },
-  required: ['dealname']
+  required: ['dealname', 'pipeline', 'dealstage']
 };
 
 /**
