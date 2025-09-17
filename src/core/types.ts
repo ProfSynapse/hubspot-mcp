@@ -61,6 +61,7 @@ export interface SchemaProperty {
   items?: any;
   properties?: Record<string, SchemaProperty>;
   required?: string[];
+  additionalProperties?: boolean | SchemaProperty;
 }
 
 /**

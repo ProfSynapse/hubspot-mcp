@@ -18,33 +18,13 @@ const inputSchema: InputSchema = {
       type: 'string',
       description: 'HubSpot contact ID (required)'
     },
-    email: {
-      type: 'string',
-      description: 'Contact email address'
-    },
-    firstName: {
-      type: 'string',
-      description: 'Contact first name'
-    },
-    lastName: {
-      type: 'string',
-      description: 'Contact last name'
-    },
-    phone: {
-      type: 'string',
-      description: 'Contact phone number'
-    },
-    company: {
-      type: 'string',
-      description: 'Contact company name'
-    },
-    additionalProperties: {
+    properties: {
       type: 'object',
-      description: 'Additional contact properties',
-      properties: {}
+      description: 'Contact properties to update (e.g., { "email": "test@example.com", "firstname": "John", "hs_legal_basis": "Legitimate interest" })',
+      additionalProperties: true
     }
   },
-  required: ['id']
+  required: ['id', 'properties']
 };
 
 /**
@@ -58,23 +38,13 @@ export const tool: ToolDefinition = {
     try {
       // Get API key from environment
       const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
-      
+
       // Create API client
       const apiClient = createHubspotApiClient(apiKey);
-      
-      // Prepare contact properties
-      const properties: Record<string, any> = {
-        ...(params.email && { email: params.email }),
-        ...(params.firstName && { firstname: params.firstName }),
-        ...(params.lastName && { lastname: params.lastName }),
-        ...(params.phone && { phone: params.phone }),
-        ...(params.company && { company: params.company }),
-        ...(params.additionalProperties || {})
-      };
-      
-      // Update contact
-      const contact = await apiClient.updateContact(params.id, properties);
-      
+
+      // Update contact with the provided properties
+      const contact = await apiClient.updateContact(params.id, params.properties);
+
       return {
         message: 'Contact updated successfully',
         contact: {

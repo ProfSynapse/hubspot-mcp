@@ -18,29 +18,13 @@ const inputSchema: InputSchema = {
       type: 'string',
       description: 'HubSpot company ID (required)'
     },
-    name: {
-      type: 'string',
-      description: 'Company name'
-    },
-    domain: {
-      type: 'string',
-      description: 'Company website domain'
-    },
-    industry: {
-      type: 'string',
-      description: 'Company industry'
-    },
-    description: {
-      type: 'string',
-      description: 'Company description'
-    },
-    additionalProperties: {
+    properties: {
       type: 'object',
-      description: 'Additional company properties',
-      properties: {}
+      description: 'Company properties to update (e.g., { "name": "ACME Corp", "domain": "acme.com", "industry": "Technology" })',
+      additionalProperties: true
     }
   },
-  required: ['id']
+  required: ['id', 'properties']
 };
 
 /**
@@ -54,22 +38,13 @@ export const tool: ToolDefinition = {
     try {
       // Get API key from environment
       const apiKey = process.env.HUBSPOT_ACCESS_TOKEN || '';
-      
+
       // Create API client
       const apiClient = createHubspotApiClient(apiKey);
-      
-      // Prepare company properties
-      const properties: Record<string, any> = {
-        ...(params.name && { name: params.name }),
-        ...(params.domain && { domain: params.domain }),
-        ...(params.industry && { industry: params.industry }),
-        ...(params.description && { description: params.description }),
-        ...(params.additionalProperties || {})
-      };
-      
-      // Update company
-      const company = await apiClient.updateCompany(params.id, properties);
-      
+
+      // Update company with the provided properties
+      const company = await apiClient.updateCompany(params.id, params.properties);
+
       return {
         message: 'Company updated successfully',
         company: {
