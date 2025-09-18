@@ -17,47 +17,86 @@
  */
 
 import { ToolDefinition, BCP, validateParams } from './types.js';
+import { ActivityHistoryService } from '../bcps/ActivityHistory/activityHistory.service.js';
 
 export interface BcpDelegator {
   delegate(domain: string, operation: string, params: Record<string, any>): Promise<any>;
   loadBcp(domain: string): Promise<BCP>;
   validateParams(params: any, schema: any, toolName: string): void;
   getOperations(domain: string): Promise<string[]>;
+  getActivityService(): ActivityHistoryService | undefined;
 }
 
 export class BcpToolDelegator implements BcpDelegator {
   private bcpCache = new Map<string, BCP>();
   private toolCache = new Map<string, Map<string, ToolDefinition>>();
+  private activityService?: ActivityHistoryService;
 
-  constructor() {
+  constructor(options?: { enableActivityLogging?: boolean; databaseUrl?: string }) {
     // Initialize with empty caches - BCPs loaded on demand
+    if (options?.enableActivityLogging !== false && process.env.DATABASE_URL) {
+      this.activityService = new ActivityHistoryService();
+      this.activityService.initialize().catch(err =>
+        console.error('Activity service initialization failed:', err)
+      );
+    }
   }
 
   async delegate(domain: string, operation: string, params: Record<string, any>): Promise<any> {
+    let result: any;
+    let success = true;
+    let errorMessage: string | undefined;
+
     try {
       // 1. Load domain BCP (cached)
       const bcp = await this.loadBcp(domain);
-      
+
       // 2. Find specific tool (cached)
       const tool = await this.findTool(domain, operation);
-      
+
       if (!tool || !tool.handler) {
         throw new Error(`Handler not found for ${domain}.${operation}`);
       }
-      
+
       // 3. Validate parameters against tool schema
       if (tool.inputSchema) {
         this.validateParams(params, tool.inputSchema, tool.name);
       }
-      
+
       // 4. Execute tool handler
-      const result = await tool.handler(params);
-      
+      result = await tool.handler(params);
+
+      // 5. Log successful activity (but not for ActivityHistory itself to avoid recursion)
+      if (this.activityService && domain !== 'ActivityHistory') {
+        await this.activityService.logActivity(
+          domain,
+          operation,
+          params,
+          result,
+          true
+        );
+      }
+
       return result;
     } catch (error) {
+      success = false;
+      errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Log failed activity (but not for ActivityHistory itself to avoid recursion)
+      if (this.activityService && domain !== 'ActivityHistory') {
+        await this.activityService.logActivity(
+          domain,
+          operation,
+          params,
+          null,
+          false,
+          errorMessage
+        );
+      }
+
       // Enhance error with context
       const enhancedError = new Error(
-        `Failed to delegate ${domain}.${operation}: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to delegate ${domain}.${operation}: ${errorMessage}`
       );
       enhancedError.cause = error;
       throw enhancedError;
@@ -113,6 +152,22 @@ export class BcpToolDelegator implements BcpDelegator {
         case 'Quotes':
           const quotesBcp = await import('../bcps/Quotes/index.js');
           bcp = quotesBcp.bcp;
+          break;
+        case 'ActivityHistory':
+          const activityBcp = await import('../bcps/ActivityHistory/index.js');
+          bcp = activityBcp.bcp;
+          // Inject the shared activity service into tool handlers
+          if (this.activityService) {
+            const activityService = this.activityService;
+            bcp.tools = bcp.tools.map(tool => ({
+              ...tool,
+              handler: async (params: any) => {
+                // Cast to any to bypass TypeScript handler signature issue
+                const handler = tool.handler as any;
+                return handler(params, { activityService });
+              }
+            }));
+          }
           break;
         default:
           throw new Error(`Unknown BCP domain: ${domain}`);
@@ -260,10 +315,15 @@ export class BcpToolDelegator implements BcpDelegator {
   getCacheStats(): { bcpCount: number; toolCount: number } {
     const toolCount = Array.from(this.toolCache.values())
       .reduce((sum, toolMap) => sum + toolMap.size, 0);
-    
+
     return {
       bcpCount: this.bcpCache.size,
       toolCount
     };
+  }
+
+  // Getter for activity service
+  getActivityService(): ActivityHistoryService | undefined {
+    return this.activityService;
   }
 }

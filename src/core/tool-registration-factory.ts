@@ -73,6 +73,10 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
     Quotes: {
       operations: ['create', 'get', 'update', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem'],
       description: 'HubSpot quote management with line items and pricing'
+    },
+    ActivityHistory: {
+      operations: ['recent', 'search'],
+      description: 'Retrieve and search history of MCP tool calls from the database'
     }
   };
 
@@ -290,6 +294,13 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
           discountPercentage: z.number().optional().describe('Discount percentage'),
           termInMonths: z.number().optional().describe('Term in months'),
           recurringBillingPeriod: z.enum(['monthly', 'quarterly', 'semiannually', 'annually', 'per_two_years', 'per_three_years']).optional().describe('Billing period')
+        };
+
+      case 'ActivityHistory':
+        return {
+          days: z.number().min(1).max(30).optional().describe('Number of days to look back (default: 7, max: 30)'),
+          domain: z.string().optional().describe('Filter by domain (e.g., Companies, Contacts)'),
+          operation: z.string().optional().describe('Filter by operation (e.g., create, search, update)')
         };
 
       default:

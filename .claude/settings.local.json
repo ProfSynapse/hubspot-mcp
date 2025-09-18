@@ -47,7 +47,9 @@
       "Bash(timeout 10s npm run dev:*)",
       "Bash(pkill:*)",
       "Bash(PORT=3001 HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef npm start)",
-      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node build/index.js --help)"
+      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node build/index.js --help)",
+      "WebFetch(domain:legacydocs.hubspot.com)",
+      "Bash(DATABASE_URL=postgresql://localhost:5432/test HUBSPOT_ACCESS_TOKEN=test_token npm start)"
     ],
     "deny": [],
     "additionalDirectories": [
