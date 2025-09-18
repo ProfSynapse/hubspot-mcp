@@ -34,6 +34,7 @@ import { ContextRegistry, DealPipelineContextProvider } from './core/context/ind
 // Import existing configuration and utilities
 import { loadConfig, validateConfiguration, isDevelopment } from './config/environment.js';
 import { createLogger } from './utils/logger.js';
+import { initializeDatabaseOnStartup } from './core/database-startup.js';
 
 // Enhanced event store for resumability with cleanup
 class EnhancedEventStore {
@@ -667,6 +668,9 @@ if (isDevelopment(config)) {
     });
   });
 }
+
+// Initialize database before starting server
+await initializeDatabaseOnStartup();
 
 // Start server
 const server = app.listen(PORT, () => {
