@@ -94,8 +94,14 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
   }
 
   private createDomainSchema(domain: string, operations: string[]): z.ZodObject<any> {
-    // Base schema with operation parameter
+    // Base schema with operation parameter and REQUIRED common parameters
     const baseSchema = {
+      context: z.string()
+        .min(1)
+        .describe('Contextual information about the current task or workflow (required)'),
+      goals: z.string()
+        .min(1)
+        .describe('Specific goals or objectives for this operation (required)'),
       operation: z.enum(operations as [string, ...string[]]).describe('Operation to perform')
     };
 

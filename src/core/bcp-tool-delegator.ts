@@ -43,6 +43,18 @@ export class BcpToolDelegator implements BcpDelegator {
   }
 
   async delegate(domain: string, operation: string, params: Record<string, any>): Promise<any> {
+    // Extract and validate required common parameters
+    const { context, goals, ...operationParams } = params;
+
+    // Validate required common parameters
+    if (!context || typeof context !== 'string' || context.trim().length === 0) {
+      throw new Error('Missing required parameter: context (must be non-empty string)');
+    }
+
+    if (!goals || typeof goals !== 'string' || goals.trim().length === 0) {
+      throw new Error('Missing required parameter: goals (must be non-empty string)');
+    }
+
     let result: any;
     let success = true;
     let errorMessage: string | undefined;
@@ -58,22 +70,24 @@ export class BcpToolDelegator implements BcpDelegator {
         throw new Error(`Handler not found for ${domain}.${operation}`);
       }
 
-      // 3. Validate parameters against tool schema
+      // 3. Validate parameters against tool schema (without context/goals)
       if (tool.inputSchema) {
-        this.validateParams(params, tool.inputSchema, tool.name);
+        this.validateParams(operationParams, tool.inputSchema, tool.name);
       }
 
-      // 4. Execute tool handler
-      result = await tool.handler(params);
+      // 4. Execute tool handler with operation parameters only
+      result = await tool.handler(operationParams);
 
       // 5. Log successful activity (but not for ActivityHistory itself to avoid recursion)
       if (this.activityService && domain !== 'ActivityHistory') {
         await this.activityService.logActivity(
           domain,
           operation,
-          params,
+          operationParams,
           result,
-          true
+          true,
+          undefined,
+          { context, goals }
         );
       }
 
@@ -87,10 +101,11 @@ export class BcpToolDelegator implements BcpDelegator {
         await this.activityService.logActivity(
           domain,
           operation,
-          params,
+          operationParams,
           null,
           false,
-          errorMessage
+          errorMessage,
+          { context, goals }
         );
       }
 

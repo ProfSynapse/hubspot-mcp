@@ -14,6 +14,8 @@ export interface ActivityLog {
   response: any;
   success: boolean;
   error_message?: string;
+  context?: string;
+  goals?: string;
 }
 
 export class ActivityHistoryService {
@@ -47,11 +49,15 @@ export class ActivityHistoryService {
           parameters JSONB,
           response JSONB,
           success BOOLEAN NOT NULL,
-          error_message TEXT
+          error_message TEXT,
+          context TEXT,
+          goals TEXT
         );
 
         CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_activity_logs_domain_operation ON activity_logs(domain, operation);
+        CREATE INDEX IF NOT EXISTS idx_activity_logs_context ON activity_logs USING gin(to_tsvector('english', context));
+        CREATE INDEX IF NOT EXISTS idx_activity_logs_goals ON activity_logs USING gin(to_tsvector('english', goals));
       `);
 
       console.log('✅ ActivityHistory database initialization complete');
@@ -71,7 +77,8 @@ export class ActivityHistoryService {
     parameters: any,
     response: any,
     success: boolean,
-    errorMessage?: string
+    errorMessage?: string,
+    contextData?: { context?: string; goals?: string }
   ): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
@@ -79,9 +86,9 @@ export class ActivityHistoryService {
 
     try {
       await this.pool.query(
-        `INSERT INTO activity_logs (domain, operation, parameters, response, success, error_message)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [domain, operation, parameters, response, success, errorMessage]
+        `INSERT INTO activity_logs (domain, operation, parameters, response, success, error_message, context, goals)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [domain, operation, parameters, response, success, errorMessage, contextData?.context, contextData?.goals]
       );
     } catch (error) {
       console.error('Failed to log activity:', error);
@@ -96,7 +103,7 @@ export class ActivityHistoryService {
 
     try {
       const result = await this.pool.query<ActivityLog>(
-        `SELECT id, timestamp, domain, operation, parameters, response, success, error_message
+        `SELECT id, timestamp, domain, operation, parameters, response, success, error_message, context, goals
          FROM activity_logs
          WHERE timestamp > NOW() - INTERVAL '${days} days'
          ORDER BY timestamp DESC
