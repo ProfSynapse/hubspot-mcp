@@ -15,7 +15,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:http": "jest --testPathPattern=http",
     "pack-dxt": "npm run build && npx @anthropic-ai/dxt pack",
-    "health-check": "node -e \"require('http').get('http://localhost:3000/health', res => process.exit(res.statusCode === 200 ? 0 : 1))\""
+    "health-check": "node -e \"require('http').get('http://localhost:3000/health', res => process.exit(res.statusCode === 200 ? 0 : 1))\"",
+    "init-db": "node src/scripts/init-database.js"
   },
   "dependencies": {
     "@hubspot/api-client": "^9.0.0",

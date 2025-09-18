@@ -87,7 +87,7 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
 
 ### hubspotEmail ⭐ **Latest Addition**
 - **Operations**: create, get, update, delete, list, recent
-- **✨ Features**: 
+- **✨ Features**:
   - Complete marketing email management using HubSpot's Marketing Email API v3
   - CRUD operations for email creation, editing, and organization
   - Advanced filtering by state, type, and date ranges
@@ -103,6 +103,18 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
   - Recent emails: `hubspotEmail({ operation: "recent", limit: 5 })`
   - Delete email: `hubspotEmail({ operation: "delete", id: "123456" })`
 
+### hubspotActivityHistory 🆕 **Activity Tracking**
+- **Operations**: recent, search
+- **✨ Features**:
+  - Track all MCP tool calls and store them in PostgreSQL
+  - View your recent activity across all HubSpot operations
+  - Search activity history by domain, operation, and time period
+  - See what you did, when you did it, and what the results were
+- **Examples**:
+  - Recent activity: `hubspotActivityHistory({ operation: "recent", days: 7 })`
+  - Search by domain: `hubspotActivityHistory({ operation: "search", domain: "Companies", days: 14 })`
+  - Search by operation: `hubspotActivityHistory({ operation: "search", operation: "create", days: 30 })`
+
 
 ## Setup
 
@@ -111,8 +123,9 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
    npm install
    ```
 
-2. Configure Claude Desktop:
-   - Add your HubSpot access token to the Claude Desktop config
+2. **Set up PostgreSQL Database** (for activity tracking):
+   - The server will automatically create the required `activity_logs` table
+   - Provide a `DATABASE_URL` environment variable pointing to your PostgreSQL instance
 
 3. Build the project:
    ```bash
@@ -121,11 +134,66 @@ A comprehensive Model Context Protocol server for HubSpot integration using the 
 
 4. Start the server:
    ```bash
-   npm start
+   HUBSPOT_ACCESS_TOKEN=your_token DATABASE_URL=your_db_url npm start
    ```
+
+## Railway Deployment Setup
+
+### 1. Database Setup
+1. **Add PostgreSQL Service**:
+   - In your Railway project, click "New Service"
+   - Select "Database" → "PostgreSQL"
+   - Railway will provision a new PostgreSQL instance
+
+2. **Get Database URL**:
+   - Click on your PostgreSQL service
+   - Go to "Variables" tab
+   - Copy the `DATABASE_URL` value
+
+### 2. Environment Variables
+Set these environment variables in your Railway service:
+
+```bash
+# Required
+HUBSPOT_ACCESS_TOKEN=your_hubspot_access_token_here
+DATABASE_URL=${{Postgres.DATABASE_URL}}  # Railway will auto-populate this
+
+# Optional
+NODE_ENV=production
+PORT=3000
+```
+
+### 3. Database Initialization
+
+#### Option A: Automatic (when server starts)
+- The activity logging system will try to create tables automatically on first run
+- Tables are created when the first tool call happens
+
+#### Option B: Manual Setup (Recommended)
+If tables aren't being created automatically, manually initialize:
+
+```bash
+# Set your DATABASE_URL then run:
+DATABASE_URL=your_postgres_url npm run init-db
+```
+
+This will:
+- Test the database connection
+- Create the `activity_logs` table with proper indexes
+- Insert a test record to verify everything works
+
+**Tables created:**
+- `activity_logs` - Stores all MCP tool call history with timestamps, parameters, and responses
+
+### 4. Verify Setup
+After deployment, check that:
+1. Your app starts without database connection errors
+2. Activity tracking works by making a test API call
+3. Query your activity history with: `hubspotActivityHistory({ operation: "recent" })`
 
 ## Claude Desktop Configuration
 
+### Local Development
 Add this to your Claude Desktop config:
 
 ```json
@@ -135,8 +203,23 @@ Add this to your Claude Desktop config:
       "command": "node",
       "args": ["./build/index.js"],
       "env": {
-        "HUBSPOT_ACCESS_TOKEN": "your_access_token_here"
+        "HUBSPOT_ACCESS_TOKEN": "your_access_token_here",
+        "DATABASE_URL": "postgresql://localhost:5432/your_db_name"
       }
+    }
+  }
+}
+```
+
+### Using Railway Deployment
+Point Claude Desktop to your Railway deployment:
+
+```json
+{
+  "mcpServers": {
+    "hubspot": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-http", "https://your-railway-app.railway.app/mcp"]
     }
   }
 }
@@ -160,7 +243,8 @@ src/
   │   ├── BlogPosts/       # BlogPosts BCP
   │   ├── Quotes/          # Quotes BCP
   │   ├── Emails/          # Emails BCP
-  │   └── Products/        # Products BCP
+  │   ├── Products/        # Products BCP
+  │   └── ActivityHistory/ # Activity tracking BCP
   └── index.ts             # Entry point
 ```
 

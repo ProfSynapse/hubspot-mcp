@@ -30,8 +30,15 @@ export class ActivityHistoryService {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
+    console.log('🔗 Initializing ActivityHistory database connection...');
+
     try {
-      await this.pool.query(`
+      // Test connection first
+      const client = await this.pool.connect();
+      console.log('✅ Database connection successful');
+
+      console.log('📋 Creating activity_logs table and indexes...');
+      await client.query(`
         CREATE TABLE IF NOT EXISTS activity_logs (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
           timestamp TIMESTAMPTZ DEFAULT NOW(),
@@ -47,9 +54,13 @@ export class ActivityHistoryService {
         CREATE INDEX IF NOT EXISTS idx_activity_logs_domain_operation ON activity_logs(domain, operation);
       `);
 
+      console.log('✅ ActivityHistory database initialization complete');
+      client.release();
       this.initialized = true;
     } catch (error) {
-      console.error('Failed to initialize activity history service:', error);
+      console.error('❌ Failed to initialize activity history service:', error);
+      console.error('   Database URL present:', !!process.env.DATABASE_URL);
+      console.error('   Error details:', error instanceof Error ? error.message : String(error));
       // Don't throw - allow system to run without logging if DB is unavailable
     }
   }
