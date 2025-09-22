@@ -171,6 +171,79 @@ export class ApiError extends Error {
 }
 
 /**
+ * Enhanced Contact Response Interfaces
+ * Types for contact responses with optional association data
+ */
+
+// Import association types for use in response interfaces
+import type {
+  AssociationType,
+  AssociationOptions,
+  EnhancedContact,
+  BaseContact,
+  AssociationData,
+  AssociatedCompany,
+  AssociatedDeal,
+  AssociatedNote,
+  AssociatedEmail,
+  AssociatedTask,
+  AssociatedMeeting,
+  AssociatedCall,
+  AssociatedTicket,
+  AssociatedQuote
+} from './association-enrichment-engine.js';
+
+// Re-export for convenience
+export type {
+  AssociationType,
+  AssociationOptions,
+  EnhancedContact,
+  BaseContact,
+  AssociationData,
+  AssociatedCompany,
+  AssociatedDeal,
+  AssociatedNote,
+  AssociatedEmail,
+  AssociatedTask,
+  AssociatedMeeting,
+  AssociatedCall,
+  AssociatedTicket,
+  AssociatedQuote
+};
+
+/**
+ * Standard contact search response
+ */
+export interface ContactSearchResponse {
+  message: string;
+  contacts: EnhancedContact[];
+  count: number;
+  error?: string;
+  suggestions?: string[];
+}
+
+/**
+ * Standard contact get response
+ */
+export interface ContactGetResponse {
+  message: string;
+  contact: EnhancedContact;
+  error?: string;
+  suggestions?: string[];
+}
+
+/**
+ * Standard contact recent response
+ */
+export interface ContactRecentResponse {
+  message: string;
+  contacts: EnhancedContact[];
+  count: number;
+  error?: string;
+  suggestions?: string[];
+}
+
+/**
  * Helper function to validate parameters against schema
  */
 export function validateParams<T>(

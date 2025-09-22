@@ -8,6 +8,7 @@
 
 import { Client } from '@hubspot/api-client';
 import { ApiError, ApiErrorType } from './types.js';
+import { AssociationEnrichmentEngine, AssociationType, AssociationOptions, EnhancedContact, BaseContact } from './association-enrichment-engine.js';
 
 /**
  * HubSpot API client class
@@ -15,6 +16,7 @@ import { ApiError, ApiErrorType } from './types.js';
 export class HubspotApiClient {
   private client: Client;
   private currentOperation: string = '';
+  private associationEngine: AssociationEnrichmentEngine;
   
   /**
    * Create a new HubSpot API client
@@ -27,6 +29,9 @@ export class HubspotApiClient {
     this.client = new Client({
       accessToken: apiKey || 'placeholder'
     });
+
+    // Initialize association enrichment engine
+    this.associationEngine = new AssociationEnrichmentEngine(this.client);
   }
 
   /**
@@ -314,21 +319,31 @@ export class HubspotApiClient {
   }
 
   /**
-   * Get contact by ID
-   * 
+   * Get contact by ID with optional association enrichment
+   *
    * @param id - Contact ID
-   * @returns Contact data
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Contact data with optional association data
    */
-  async getContact(id: string): Promise<any> {
+  async getContact(id: string, associationOptions?: AssociationOptions): Promise<EnhancedContact> {
     try {
       const response = await this.client.crm.contacts.basicApi.getById(id);
-      
-      return this.formatResponse({
+
+      const contact: BaseContact = {
         id: response.id,
         properties: response.properties,
-        createdAt: response.createdAt,
-        updatedAt: response.updatedAt
-      });
+        createdAt: typeof response.createdAt === 'string' ? response.createdAt : new Date().toISOString(),
+        updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : new Date().toISOString()
+      };
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use association enrichment engine for a single contact
+        const enrichedResults = await this.associationEngine.enrichContacts([contact], associationOptions);
+        return this.formatResponse(enrichedResults[0]);
+      }
+
+      return this.formatResponse(contact);
     } catch (error) {
       return this.handleApiError(error, 'getContact');
     }
@@ -360,14 +375,20 @@ export class HubspotApiClient {
 
 
   /**
-   * Search contacts by email
-   * 
+   * Search contacts by email with optional association enrichment
+   *
    * @param email - Email to search for
    * @param limit - Maximum number of results
-   * @param includeAssociations - Whether to fetch associated companies (requires additional API calls)
-   * @returns Matching contacts
+   * @param includeAssociations - Whether to fetch associations (legacy parameter for backward compatibility)
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Matching contacts with optional association data
    */
-  async searchContactsByEmail(email: string, limit: number = 10, includeAssociations: boolean = false): Promise<any[]> {
+  async searchContactsByEmail(
+    email: string,
+    limit: number = 10,
+    includeAssociations: boolean = false,
+    associationOptions?: AssociationOptions
+  ): Promise<EnhancedContact[]> {
     try {
       const response = await this.client.crm.contacts.searchApi.doSearch({
         filterGroups: [{
@@ -382,19 +403,25 @@ export class HubspotApiClient {
         limit,
         properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
-      
-      let results = response.results.map(contact => ({
+
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
       }));
-      
-      // Optionally fetch associated companies
-      if (includeAssociations && results.length > 0) {
-        results = await this.enrichContactsWithCompanies(results);
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      } else if (includeAssociations && results.length > 0) {
+        // Legacy company enrichment for backward compatibility
+        const legacyEnriched = await this.enrichContactsWithCompanies(results);
+        return this.formatResponse(legacyEnriched);
       }
-      
+
       return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByEmail');
@@ -402,14 +429,20 @@ export class HubspotApiClient {
   }
 
   /**
-   * Search contacts by name
-   * 
+   * Search contacts by name with optional association enrichment
+   *
    * @param name - Name to search for
    * @param limit - Maximum number of results
-   * @param includeAssociations - Whether to fetch associated companies (requires additional API calls)
-   * @returns Matching contacts
+   * @param includeAssociations - Whether to fetch associations (legacy parameter for backward compatibility)
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Matching contacts with optional association data
    */
-  async searchContactsByName(name: string, limit: number = 10, includeAssociations: boolean = false): Promise<any[]> {
+  async searchContactsByName(
+    name: string,
+    limit: number = 10,
+    includeAssociations: boolean = false,
+    associationOptions?: AssociationOptions
+  ): Promise<EnhancedContact[]> {
     try {
       // Trim and normalize the search input
       const searchTerm = name.trim().toLowerCase();
@@ -445,18 +478,24 @@ export class HubspotApiClient {
         
         // If we found exact matches, return them
         if (exactMatchResponse.results.length > 0) {
-          let results = exactMatchResponse.results.map(contact => ({
+          let results: BaseContact[] = exactMatchResponse.results.map(contact => ({
             id: contact.id,
             properties: contact.properties,
-            createdAt: contact.createdAt,
-            updatedAt: contact.updatedAt
+            createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+            updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
           }));
-          
-          // Optionally fetch associated companies
-          if (includeAssociations) {
-            results = await this.enrichContactsWithCompanies(results);
+
+          // Handle association enrichment
+          if (associationOptions && associationOptions.associationTypes.length > 0) {
+            // Use new association enrichment engine
+            const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+            return this.formatResponse(enrichedResults);
+          } else if (includeAssociations) {
+            // Legacy company enrichment for backward compatibility
+            const legacyEnriched = await this.enrichContactsWithCompanies(results);
+            return this.formatResponse(legacyEnriched);
           }
-          
+
           return this.formatResponse(results);
         }
       }
@@ -525,21 +564,27 @@ export class HubspotApiClient {
         });
         
         // Sort by score and return top results
-        let sortedResults = scoredResults
+        let sortedResults: BaseContact[] = scoredResults
           .sort((a, b) => b.score - a.score)
           .slice(0, limit)
           .map(item => ({
             id: item.contact.id,
             properties: item.contact.properties,
-            createdAt: item.contact.createdAt,
-            updatedAt: item.contact.updatedAt
+            createdAt: typeof item.contact.createdAt === 'string' ? item.contact.createdAt : new Date().toISOString(),
+            updatedAt: typeof item.contact.updatedAt === 'string' ? item.contact.updatedAt : new Date().toISOString()
           }));
-        
-        // Optionally fetch associated companies
-        if (includeAssociations && sortedResults.length > 0) {
-          sortedResults = await this.enrichContactsWithCompanies(sortedResults);
+
+        // Handle association enrichment
+        if (associationOptions && associationOptions.associationTypes.length > 0) {
+          // Use new association enrichment engine
+          const enrichedResults = await this.associationEngine.enrichContacts(sortedResults, associationOptions);
+          return this.formatResponse(enrichedResults);
+        } else if (includeAssociations && sortedResults.length > 0) {
+          // Legacy company enrichment for backward compatibility
+          const legacyEnriched = await this.enrichContactsWithCompanies(sortedResults);
+          return this.formatResponse(legacyEnriched);
         }
-        
+
         return this.formatResponse(sortedResults);
       }
       
@@ -554,18 +599,24 @@ export class HubspotApiClient {
         properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
       
-      let results = response.results.map(contact => ({
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
       }));
-      
-      // Optionally fetch associated companies
-      if (includeAssociations && results.length > 0) {
-        results = await this.enrichContactsWithCompanies(results);
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      } else if (includeAssociations && results.length > 0) {
+        // Legacy company enrichment for backward compatibility
+        const legacyEnriched = await this.enrichContactsWithCompanies(results);
+        return this.formatResponse(legacyEnriched);
       }
-      
+
       return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByName');
@@ -630,12 +681,13 @@ export class HubspotApiClient {
   }
 
   /**
-   * Get recent contacts
-   * 
+   * Get recent contacts with optional association enrichment
+   *
    * @param limit - Maximum number of results
-   * @returns Recent contacts
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Recent contacts with optional association data
    */
-  async getRecentContacts(limit: number = 10): Promise<any[]> {
+  async getRecentContacts(limit: number = 10, associationOptions?: AssociationOptions): Promise<EnhancedContact[]> {
     try {
       // Use search API instead of getPage to get better control over properties
       const response = await this.client.crm.contacts.searchApi.doSearch({
@@ -650,13 +702,22 @@ export class HubspotApiClient {
         limit,
         properties: ['email', 'firstname', 'lastname']
       });
-      
-      return this.formatResponse(response.results.map(contact => ({
+
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
-      })));
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
+      }));
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      }
+
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'getRecentContacts');
     }
