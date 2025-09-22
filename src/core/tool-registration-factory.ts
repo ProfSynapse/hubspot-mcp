@@ -144,7 +144,12 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
           phone: z.string().optional().describe('Contact phone number'),
           company: z.string().optional().describe('Contact company'),
           searchType: z.enum(['email', 'name']).optional().describe('Type of search to perform'),
-          searchTerm: z.string().optional().describe('Search term')
+          searchTerm: z.string().optional().describe('Search term'),
+          includeAssociations: z.boolean().optional().describe('Include associated data (companies, deals, notes, etc.)'),
+          associationTypes: z.array(z.enum(['companies', 'deals', 'tickets', 'notes', 'tasks', 'meetings', 'calls', 'emails', 'quotes']))
+            .optional()
+            .describe('Types of associations to retrieve'),
+          associationLimit: z.number().min(1).max(500).optional().describe('Maximum number of associations per type')
         };
 
       case 'Notes':
