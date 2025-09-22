@@ -242,9 +242,41 @@ export class AssociationEnrichmentEngine {
           recoveryAction: this.getRecoveryAction(error)
         });
 
-        // Set empty array for failed association types
-        associationData[type] = [];
-        associationCounts[type] = 0;
+        // For scope-related errors, provide the association IDs without content
+        if (error instanceof Error && error.message.includes('sales-email-read')) {
+          console.log(`⚠️ ${type} associations found but content requires sales-email-read scope`);
+
+          // Try to get just the association IDs without content
+          try {
+            const assocOnlyResponse = await this.client.crm.associations.batchApi.read(
+              'contacts',
+              type,
+              { inputs: [{ id: contact.id }] }
+            );
+
+            if (assocOnlyResponse.results?.[0]?.to) {
+              const associationStubs = assocOnlyResponse.results[0].to.map((assoc: any) => ({
+                id: assoc.id,
+                associationType: assoc.type,
+                error: 'Content requires sales-email-read scope'
+              }));
+
+              associationData[type] = associationStubs;
+              associationCounts[type] = associationStubs.length;
+
+              // Update the error to be more informative
+              errors[errors.length - 1].recoveryAction = 'grant_sales_email_read_scope';
+            }
+          } catch (assocError) {
+            // If even association read fails, keep the empty array
+            associationData[type] = [];
+            associationCounts[type] = 0;
+          }
+        } else {
+          // Set empty array for other types of failures
+          associationData[type] = [];
+          associationCounts[type] = 0;
+        }
       }
     });
 
@@ -282,26 +314,31 @@ export class AssociationEnrichmentEngine {
     limit: number
   ): Promise<any[]> {
     try {
-      // First, get association IDs
-      const associationResponse = await this.client.apiRequest({
-        method: 'GET',
-        path: `/crm/v4/objects/contacts/${contactId}/associations/${associationType}?limit=${limit}`
-      });
+      // Use the HubSpot SDK's associations API
+      const associationResponse = await this.client.crm.associations.batchApi.read(
+        'contacts',
+        associationType,
+        { inputs: [{ id: contactId }] }
+      );
 
-      const responseData = associationResponse as any;
-      if (!responseData.results || responseData.results.length === 0) {
+      if (!associationResponse.results || associationResponse.results.length === 0) {
+        return [];
+      }
+
+      const firstResult = associationResponse.results[0];
+      if (!firstResult.to || firstResult.to.length === 0) {
         return [];
       }
 
       // Extract object IDs
-      const objectIds = responseData.results.map((assoc: any) => assoc.toObjectId);
+      const objectIds = firstResult.to.map((assoc: any) => assoc.id);
 
       // Batch fetch the actual objects with details
       const objectData = await this.batchFetchObjects(associationType, objectIds);
 
       // Transform and combine with association metadata
       return objectData.map((obj: any, index: number) => {
-        const associationMeta = responseData.results[index];
+        const associationMeta = firstResult.to[index];
         return this.transformAssociatedObject(obj, associationType, associationMeta);
       });
 
@@ -312,6 +349,42 @@ export class AssociationEnrichmentEngine {
         `fetchAssociations_${associationType}`,
         'unknown'
       );
+    }
+  }
+
+  /**
+   * Get the appropriate CRM module for an object type
+   *
+   * @param objectType - Type of object
+   * @returns CRM module or undefined
+   */
+  private getCrmModule(objectType: string): any {
+    switch (objectType) {
+      case 'companies':
+        return this.client.crm.companies;
+      case 'deals':
+        return this.client.crm.deals;
+      case 'tickets':
+        return this.client.crm.tickets;
+      case 'notes':
+      case 'tasks':
+      case 'meetings':
+      case 'calls':
+      case 'emails':
+        // These are custom objects, return a wrapper that uses the correct API
+        return {
+          batchApi: {
+            read: (params: any) => this.client.crm.objects.batchApi.read(objectType, params)
+          },
+          basicApi: {
+            getById: (id: string, properties?: string[]) =>
+              this.client.crm.objects.basicApi.getById(objectType, id, properties)
+          }
+        };
+      case 'quotes':
+        return this.client.crm.quotes;
+      default:
+        return undefined;
     }
   }
 
@@ -330,25 +403,30 @@ export class AssociationEnrichmentEngine {
     try {
       // Use batch read API if available, otherwise fetch individually
       if (objectIds.length <= 100) {
-        // Batch read for efficiency
-        const batchResponse = await this.client.apiRequest({
-          method: 'POST',
-          path: `/crm/v3/objects/${objectType}/batch/read`,
-          body: {
-            inputs: objectIds.map(id => ({ id })),
-            properties: this.getPropertiesForObjectType(objectType)
-          }
+        // Batch read for efficiency using the SDK
+        const crmModule = this.getCrmModule(objectType);
+        if (!crmModule) {
+          return [];
+        }
+
+        const batchResponse = await crmModule.batchApi.read({
+          inputs: objectIds.map(id => ({ id })),
+          properties: this.getPropertiesForObjectType(objectType)
         });
 
-        const batchData = batchResponse as any;
-        return batchData.results || [];
+        return batchResponse.results || [];
       } else {
         // Fetch individually for large datasets
+        const crmModule = this.getCrmModule(objectType);
+        if (!crmModule) {
+          return [];
+        }
+
         const objectPromises = objectIds.map(id =>
-          this.client.apiRequest({
-            method: 'GET',
-            path: `/crm/v3/objects/${objectType}/${id}?properties=${this.getPropertiesForObjectType(objectType).join(',')}`
-          })
+          crmModule.basicApi.getById(
+            id,
+            this.getPropertiesForObjectType(objectType)
+          )
         );
 
         const objects = await Promise.allSettled(objectPromises);
