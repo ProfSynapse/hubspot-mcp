@@ -81,6 +81,12 @@ export const tool: ToolDefinition = {
           associationTypes: params.associationTypes as AssociationType[],
           associationLimit: params.associationLimit || 50
         };
+        console.log('🔍 Association options prepared:', JSON.stringify(associationOptions));
+      } else {
+        console.log('🔍 No associations requested or invalid parameters:', {
+          includeAssociations: params.includeAssociations,
+          associationTypes: params.associationTypes
+        });
       }
 
       // Search contacts
