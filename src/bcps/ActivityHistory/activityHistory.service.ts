@@ -39,7 +39,9 @@ export class ActivityHistoryService {
       const client = await this.pool.connect();
       console.log('✅ Database connection successful');
 
-      console.log('📋 Creating activity_logs table and indexes...');
+      console.log('📋 Creating/updating activity_logs table and indexes...');
+
+      // First create table with base structure if it doesn't exist
       await client.query(`
         CREATE TABLE IF NOT EXISTS activity_logs (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -49,16 +51,39 @@ export class ActivityHistoryService {
           parameters JSONB,
           response JSONB,
           success BOOLEAN NOT NULL,
-          error_message TEXT,
-          context TEXT,
-          goals TEXT
+          error_message TEXT
         );
+      `);
 
+      // Then add new columns if they don't exist (migration)
+      try {
+        await client.query(`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS context TEXT;`);
+        console.log('✅ Added context column');
+      } catch (error) {
+        console.log('⚠️ Context column already exists or could not be added');
+      }
+
+      try {
+        await client.query(`ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS goals TEXT;`);
+        console.log('✅ Added goals column');
+      } catch (error) {
+        console.log('⚠️ Goals column already exists or could not be added');
+      }
+
+      // Create basic indexes
+      await client.query(`
         CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_activity_logs_domain_operation ON activity_logs(domain, operation);
-        CREATE INDEX IF NOT EXISTS idx_activity_logs_context ON activity_logs USING gin(to_tsvector('english', context));
-        CREATE INDEX IF NOT EXISTS idx_activity_logs_goals ON activity_logs USING gin(to_tsvector('english', goals));
       `);
+
+      // Create text search indexes if columns exist
+      try {
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_activity_logs_context ON activity_logs USING gin(to_tsvector('english', COALESCE(context, '')));`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_activity_logs_goals ON activity_logs USING gin(to_tsvector('english', COALESCE(goals, '')));`);
+        console.log('✅ Created text search indexes');
+      } catch (error) {
+        console.log('⚠️ Text search indexes skipped:', error instanceof Error ? error.message : String(error));
+      }
 
       console.log('✅ ActivityHistory database initialization complete');
       client.release();
