@@ -77,6 +77,10 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
     ActivityHistory: {
       operations: ['recent', 'search'],
       description: 'Retrieve and search history of MCP tool calls from the database'
+    },
+    Lists: {
+      operations: ['create', 'get', 'search', 'update', 'delete', 'updateFilters', 'addMembers', 'removeMembers', 'getMembers'],
+      description: 'HubSpot list (segment) management with MANUAL, DYNAMIC, and SNAPSHOT support'
     }
   };
 
@@ -312,6 +316,28 @@ export class BcpToolRegistrationFactory implements ToolRegistrationFactory {
           days: z.number().min(1).max(30).optional().describe('Number of days to look back (default: 7, max: 30)'),
           domain: z.string().optional().describe('Filter by domain (e.g., Companies, Contacts)'),
           operation: z.string().optional().describe('Filter by operation (e.g., create, search, update)')
+        };
+
+      case 'Lists':
+        return {
+          ...commonParams,
+          listId: z.string().optional().describe('List ID (required for get, update, delete, membership operations)'),
+          name: z.string().optional().describe('List name (required for create, update)'),
+          objectTypeId: z.enum(['0-1', '0-2', '0-3', '0-5']).optional().describe('Object type: 0-1=Contacts, 0-2=Companies, 0-3=Deals, 0-5=Tickets'),
+          processingType: z.enum(['MANUAL', 'DYNAMIC', 'SNAPSHOT']).optional().describe('List type: MANUAL (static), DYNAMIC (auto-updating), SNAPSHOT (point-in-time then manual)'),
+          filterBranch: z.object({
+            filterBranchType: z.enum(['OR']),
+            filterBranches: z.array(z.any()),
+            filters: z.array(z.any())
+          }).optional().describe('Filter definition (required for DYNAMIC and SNAPSHOT lists)'),
+          query: z.string().optional().describe('Search query for list names'),
+          processingTypes: z.array(z.enum(['MANUAL', 'DYNAMIC', 'SNAPSHOT'])).optional().describe('Filter by processing types'),
+          includeFilters: z.boolean().optional().describe('Include filter definitions (default: true)'),
+          count: z.number().min(1).max(100).optional().describe('Results per page (default: 50)'),
+          offset: z.number().optional().describe('Pagination offset'),
+          listIds: z.array(z.string()).optional().describe('Specific list IDs to retrieve'),
+          recordIds: z.array(z.string()).optional().describe('Record IDs for membership operations (max 100,000)'),
+          after: z.string().optional().describe('Pagination cursor for members')
         };
 
       default:

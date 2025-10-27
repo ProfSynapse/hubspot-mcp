@@ -84,6 +84,32 @@ export const PARAMETER_SUGGESTIONS: Record<string, string[]> = {
     "📦 Product IDs are long numeric strings in HubSpot",
     "💡 Find products: {operation: 'search', name: 'product name'} or {operation: 'list', limit: 10}",
     "🔍 Use product search if you don't have the exact ID"
+  ],
+
+  // List ID parameters
+  listId: [
+    "💡 Find list: {operation: 'search', query: 'list name'}",
+    "📋 List all lists: {operation: 'search', count: 50}"
+  ],
+
+  // Processing Type parameters
+  processingType: [
+    "📋 MANUAL: Static lists you control manually",
+    "🔄 DYNAMIC: Auto-updating lists based on filters",
+    "📸 SNAPSHOT: Initially filtered, then manual"
+  ],
+
+  // Filter Branch parameters
+  filterBranch: [
+    "🔍 Filter structure: OR branch → AND branches → filters",
+    "💡 Root must be OR, children must be AND",
+    "📋 Each AND branch contains property filters"
+  ],
+
+  // Record IDs parameters
+  recordIds: [
+    "📊 Batch operations support up to 100,000 records",
+    "💡 Find record IDs using search operations in other domains"
   ]
 };
 
@@ -121,6 +147,18 @@ export const WORKFLOW_SUGGESTIONS: Record<string, string[]> = {
   ],
   listDealNotes: [
     "📋 Related: Use 'get' operation with a noteId from the results to see full note details"
+  ],
+
+  // List operations
+  create: [
+    "📋 Next: Add members with {operation: 'addMembers', listId: 'list_id', recordIds: [...]}"
+  ],
+  addMembers: [
+    "📊 View members: {operation: 'getMembers', listId: 'list_id', limit: 100}"
+  ],
+  updateFilters: [
+    "⏳ Note: Dynamic lists may take 5-15 minutes to fully evaluate new filters",
+    "📊 Check membership: {operation: 'getMembers', listId: 'list_id'}"
   ]
 };
 
@@ -266,6 +304,40 @@ export const WORKFLOW_PATTERNS: Record<string, Record<string, string[]>> = {
       "2️⃣ Update item: {operation: 'updateLineItem', lineItemId: 'item_id', quantity: 2}",
       "3️⃣ Remove item: {operation: 'removeLineItem', lineItemId: 'item_id'}"
     ]
+  },
+
+  Lists: {
+    'static-list-creation': [
+      "📋 Static List Workflow:",
+      "1️⃣ Create list: {operation: 'create', name: 'My List', objectTypeId: '0-1', processingType: 'MANUAL'}",
+      "2️⃣ Find records: Use Contacts/Companies domain to search for record IDs",
+      "3️⃣ Add members: {operation: 'addMembers', listId: 'list_id', recordIds: ['id1', 'id2']}",
+      "4️⃣ Verify: {operation: 'getMembers', listId: 'list_id'}"
+    ],
+
+    'dynamic-list-creation': [
+      "🔄 Dynamic List Workflow:",
+      "1️⃣ Create with filters: {operation: 'create', processingType: 'DYNAMIC', filterBranch: {...}}",
+      "2️⃣ Wait 5-15 minutes for initial evaluation",
+      "3️⃣ Check members: {operation: 'getMembers', listId: 'list_id'}",
+      "4️⃣ Update filters as needed: {operation: 'updateFilters'}"
+    ],
+
+    'snapshot-list-creation': [
+      "📸 Snapshot List Workflow:",
+      "1️⃣ Create with filters: {operation: 'create', processingType: 'SNAPSHOT', filterBranch: {...}}",
+      "2️⃣ Wait for initial population",
+      "3️⃣ Add/remove members manually: {operation: 'addMembers' or 'removeMembers'}",
+      "4️⃣ List captures point-in-time state with manual control"
+    ],
+
+    'filter-building': [
+      "🔍 Filter Building Workflow:",
+      "1️⃣ Identify property: Use Properties domain to find valid property names",
+      "2️⃣ Choose operator: IS_EQUAL_TO, CONTAINS, IS_GREATER_THAN, etc.",
+      "3️⃣ Build AND branch: Group related conditions",
+      "4️⃣ Combine with OR: Multiple AND branches for alternative criteria"
+    ]
   }
 };
 
@@ -324,5 +396,12 @@ export const DOMAIN_SUGGESTIONS: Record<string, string[]> = {
     "💰 Product properties include name, price, SKU, and description",
     "🔍 Use search operations to find products by name if you don't have the ID",
     "📋 Product IDs are typically long numeric strings in HubSpot"
+  ],
+
+  Lists: [
+    "📋 Lists organize records for segmentation and bulk operations",
+    "🔄 DYNAMIC lists auto-update based on property filters",
+    "💡 Use SNAPSHOT for historical point-in-time lists",
+    "⚠️ Cannot manually add members to DYNAMIC lists - update filters instead"
   ]
 };

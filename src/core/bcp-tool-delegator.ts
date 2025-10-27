@@ -184,6 +184,10 @@ export class BcpToolDelegator implements BcpDelegator {
             }));
           }
           break;
+        case 'Lists':
+          const listsBcp = await import('../bcps/Lists/index.js');
+          bcp = listsBcp.bcp;
+          break;
         default:
           throw new Error(`Unknown BCP domain: ${domain}`);
       }

@@ -187,6 +187,17 @@ export function enhanceDealsResponse(
 }
 
 /**
+ * Convenience function for Lists domain operations
+ */
+export function enhanceListsResponse(
+  result: any,
+  operation: string,
+  params: Record<string, any>
+): EnhancedResponse {
+  return enhanceResponse(result, operation, params, 'Lists');
+}
+
+/**
  * Enhanced error response with contextual suggestions for fixing the error
  */
 export function enhanceErrorResponse(
@@ -200,6 +211,6 @@ export function enhanceErrorResponse(
     error: error.message,
     message: `Failed to execute ${operation}`
   };
-  
+
   return enhanceResponse(errorResponse, operation, params, domain, error);
 }

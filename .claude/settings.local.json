@@ -52,7 +52,9 @@
       "Bash(DATABASE_URL=postgresql://localhost:5432/test HUBSPOT_ACCESS_TOKEN=test_token npm start)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node test-associations-simple.js)",
       "Bash(npm start)",
-      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node test-final-associations.js)"
+      "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node test-final-associations.js)",
+      "Bash(cat:*)",
+      "Bash(env)"
     ],
     "deny": [],
     "additionalDirectories": [
