@@ -67,21 +67,36 @@ export class ListsService extends HubspotBaseService {
     }
 
     try {
+      const requestBody = {
+        name: params.name,
+        objectTypeId: params.objectTypeId,
+        processingType: params.processingType,
+        ...(params.filterBranch && { filterBranch: params.filterBranch })
+      };
+
       const response = await this.client.apiRequest({
         method: 'POST',
         path: '/crm/v3/lists/',
-        body: {
-          name: params.name,
-          objectTypeId: params.objectTypeId,
-          processingType: params.processingType,
-          ...(params.filterBranch && { filterBranch: params.filterBranch })
-        }
+        body: requestBody
       });
 
-      // Debug: Log the raw response to understand structure
-      console.log('HubSpot API Response:', JSON.stringify(response, null, 2));
+      // Check if response is wrapped in body/data field
+      const responseAny = response as any;
+      const actualData = responseAny.body || responseAny.data || response;
 
-      return this.transformListResponse(response);
+      // Return response with debug info for troubleshooting
+      const result = this.transformListResponse(actualData);
+      (result as any).__debug = {
+        rawApiResponse: response,
+        actualData: actualData,
+        requestSent: requestBody,
+        availableFields: Object.keys(actualData || {}),
+        responseType: typeof response,
+        hasBody: !!responseAny.body,
+        hasData: !!responseAny.data
+      };
+
+      return result;
     } catch (e: any) {
       this.handleListsApiError(e, 'createList');
     }
@@ -526,16 +541,39 @@ export class ListsService extends HubspotBaseService {
    * Transforms HubSpot API response to our List interface
    */
   private transformListResponse(response: any): List {
-    // Debug: Log what fields are present
-    console.log('Transform input fields:', Object.keys(response));
+    // Validate required fields exist
+    if (!response) {
+      throw new BcpError(
+        'API returned null/undefined response',
+        'INVALID_RESPONSE',
+        500
+      );
+    }
+
+    const listId = response.listId || response.id || response.IlsListId;
+    if (!listId) {
+      throw new BcpError(
+        `Response missing listId field. Available fields: ${Object.keys(response).join(', ')}. Response: ${JSON.stringify(response)}`,
+        'INVALID_RESPONSE',
+        500
+      );
+    }
+
+    if (!response.name) {
+      throw new BcpError(
+        `Response missing name field. Available fields: ${Object.keys(response).join(', ')}. Response: ${JSON.stringify(response)}`,
+        'INVALID_RESPONSE',
+        500
+      );
+    }
 
     return {
-      listId: response.listId || response.id || response.IlsListId || 'unknown',
-      name: response.name || response.listName || 'Unnamed List',
-      objectTypeId: response.objectTypeId || response.listType || '0-1',
-      processingType: (response.processingType || response.listProcessingType || 'MANUAL') as ProcessingType,
-      createdAt: response.createdAt || new Date().toISOString(),
-      updatedAt: response.updatedAt || new Date().toISOString(),
+      listId,
+      name: response.name,
+      objectTypeId: response.objectTypeId || '0-1',
+      processingType: response.processingType || 'MANUAL',
+      createdAt: response.createdAt,
+      updatedAt: response.updatedAt,
       archived: response.archived || false,
       filterBranch: response.filterBranch,
       membershipCount: response.membershipCount
