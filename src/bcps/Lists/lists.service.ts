@@ -80,20 +80,17 @@ export class ListsService extends HubspotBaseService {
         body: requestBody
       });
 
-      // Check if response is wrapped in body/data field
-      const responseAny = response as any;
-      const actualData = responseAny.body || responseAny.data || response;
+      // Parse the response
+      const parsedData = await this.parseResponse(response);
 
       // Return response with debug info for troubleshooting
-      const result = this.transformListResponse(actualData);
+      const result = this.transformListResponse(parsedData);
       (result as any).__debug = {
         rawApiResponse: response,
-        actualData: actualData,
+        parsedData: parsedData,
         requestSent: requestBody,
-        availableFields: Object.keys(actualData || {}),
-        responseType: typeof response,
-        hasBody: !!responseAny.body,
-        hasData: !!responseAny.data
+        availableFields: Object.keys(parsedData || {}),
+        responseType: typeof response
       };
 
       return result;
@@ -123,7 +120,8 @@ export class ListsService extends HubspotBaseService {
         path: `/crm/v3/lists/${listId}?includeFilters=${includeFilters}`
       });
 
-      return this.transformListResponse(response);
+      const parsedData = await this.parseResponse(response);
+      return this.transformListResponse(parsedData);
     } catch (e: any) {
       if (e.code === 404 || e.body?.category === 'OBJECT_NOT_FOUND') {
         throw new BcpError(`List with ID '${listId}' not found`, 'NOT_FOUND', 404);
@@ -158,8 +156,8 @@ export class ListsService extends HubspotBaseService {
         body: searchRequest
       });
 
-      const typedResponse = response as any;
-      const lists = typedResponse.lists || [];
+      const parsedData = await this.parseResponse(response);
+      const lists = parsedData.lists || [];
 
       return {
         lists: lists.map((list: any) => this.transformListResponse(list)),
@@ -534,6 +532,26 @@ export class ListsService extends HubspotBaseService {
 
       default:
         return this.handleApiError(error, context);
+    }
+  }
+
+  /**
+   * Parse API response from stream/Response object to JSON
+   */
+  private async parseResponse(response: any): Promise<any> {
+    const responseAny = response as any;
+
+    // Try to parse as JSON if it's a stream/response object
+    if (responseAny.json && typeof responseAny.json === 'function') {
+      return await responseAny.json();
+    } else if (responseAny.body && typeof responseAny.body.json === 'function') {
+      return await responseAny.body.json();
+    } else if (responseAny.text && typeof responseAny.text === 'function') {
+      const textData = await responseAny.text();
+      return JSON.parse(textData);
+    } else {
+      // Already parsed or is plain object
+      return responseAny.body || responseAny.data || response;
     }
   }
 
