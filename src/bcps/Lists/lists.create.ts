@@ -31,24 +31,82 @@ const inputSchema: InputSchema = {
     },
     filterBranch: {
       type: 'object',
-      description: 'Filter definition (required for DYNAMIC and SNAPSHOT lists)',
+      description: 'Filter definition (required for DYNAMIC and SNAPSHOT lists). Structure: Root OR branch → Child AND branches → Individual filters. Example: {"filterBranchType":"OR","filters":[],"filterBranches":[{"filterBranchType":"AND","filters":[{"filterType":"PROPERTY","property":"email","operation":{"operationType":"MULTISTRING","operator":"CONTAINS","values":["@example.com"]}}],"filterBranches":[]}]}',
       properties: {
         filterBranchType: {
           type: 'string',
           enum: ['OR'],
           description: 'Must be OR for root branch'
         },
-        filterBranches: {
-          type: 'array',
-          items: { type: 'object' },
-          description: 'Child AND branches containing filters'
-        },
         filters: {
           type: 'array',
           items: { type: 'object' },
-          description: 'Must be empty array for root OR branch'
+          description: 'Must be empty array for root OR branch (filters go in child AND branches)'
+        },
+        filterBranches: {
+          type: 'array',
+          description: 'Array of AND branches. Each AND branch contains filters. Structure: [{"filterBranchType":"AND","filters":[<filter objects>],"filterBranches":[]}]',
+          items: {
+            type: 'object',
+            properties: {
+              filterBranchType: {
+                type: 'string',
+                enum: ['AND'],
+                description: 'Must be AND for child branches'
+              },
+              filterBranches: {
+                type: 'array',
+                items: { type: 'object' },
+                description: 'Nested branches (usually empty for simple filters)'
+              },
+              filters: {
+                type: 'array',
+                description: 'Array of filter objects. Each filter must have: filterType, property, and operation object',
+                items: {
+                  type: 'object',
+                  properties: {
+                    filterType: {
+                      type: 'string',
+                      enum: ['PROPERTY'],
+                      description: 'Filter type - use PROPERTY for property-based filters'
+                    },
+                    property: {
+                      type: 'string',
+                      description: 'Property name to filter on (e.g., "email", "firstname", "organization_type")'
+                    },
+                    operation: {
+                      type: 'object',
+                      description: 'Operation definition specifying how to filter. IMPORTANT: Must be an object with operationType, operator, and values/value',
+                      properties: {
+                        operationType: {
+                          type: 'string',
+                          enum: ['MULTISTRING', 'NUMBER', 'BOOL', 'TIME_POINT', 'ENUMERATION'],
+                          description: 'Operation type: MULTISTRING for text properties, NUMBER for numeric, BOOL for boolean, TIME_POINT for dates, ENUMERATION for multi-select'
+                        },
+                        operator: {
+                          type: 'string',
+                          description: 'Comparison operator: IS_EQUAL_TO, IS_NOT_EQUAL_TO, CONTAINS, DOES_NOT_CONTAIN, IS_GREATER_THAN, IS_LESS_THAN, etc. Use IS_EQUAL_TO (not EQ), IS_NOT_EQUAL_TO (not NEQ)'
+                        },
+                        values: {
+                          type: 'array',
+                          description: 'Array of values for MULTISTRING and ENUMERATION types. Example: ["Career Center"] or ["value1","value2"]'
+                        },
+                        value: {
+                          description: 'Single value for NUMBER, BOOL, or TIME_POINT types. Example: 100 or true'
+                        }
+                      },
+                      required: ['operationType', 'operator']
+                    }
+                  },
+                  required: ['filterType', 'property', 'operation']
+                }
+              }
+            },
+            required: ['filterBranchType', 'filters', 'filterBranches']
+          }
         }
-      }
+      },
+      required: ['filterBranchType', 'filters', 'filterBranches']
     }
   },
   required: ['name', 'objectTypeId', 'processingType']
