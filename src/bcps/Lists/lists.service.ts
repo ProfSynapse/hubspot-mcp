@@ -78,6 +78,9 @@ export class ListsService extends HubspotBaseService {
         }
       });
 
+      // Debug: Log the raw response to understand structure
+      console.log('HubSpot API Response:', JSON.stringify(response, null, 2));
+
       return this.transformListResponse(response);
     } catch (e: any) {
       this.handleListsApiError(e, 'createList');
@@ -523,11 +526,14 @@ export class ListsService extends HubspotBaseService {
    * Transforms HubSpot API response to our List interface
    */
   private transformListResponse(response: any): List {
+    // Debug: Log what fields are present
+    console.log('Transform input fields:', Object.keys(response));
+
     return {
-      listId: response.listId || response.id,
-      name: response.name,
-      objectTypeId: response.objectTypeId,
-      processingType: response.processingType as ProcessingType,
+      listId: response.listId || response.id || response.IlsListId || 'unknown',
+      name: response.name || response.listName || 'Unnamed List',
+      objectTypeId: response.objectTypeId || response.listType || '0-1',
+      processingType: (response.processingType || response.listProcessingType || 'MANUAL') as ProcessingType,
       createdAt: response.createdAt || new Date().toISOString(),
       updatedAt: response.updatedAt || new Date().toISOString(),
       archived: response.archived || false,
