@@ -53,6 +53,23 @@ export class ListsService extends HubspotBaseService {
           400
         );
       }
+
+      // Auto-fix common mistake: filters at OR root level
+      if (params.filterBranch.filters && params.filterBranch.filters.length > 0) {
+        console.log('Auto-fixing filter structure: moving filters from OR root to AND branch');
+        params.filterBranch = {
+          filterBranchType: 'OR',
+          filters: [],
+          filterBranches: [
+            {
+              filterBranchType: 'AND',
+              filters: params.filterBranch.filters,
+              filterBranches: []
+            }
+          ]
+        };
+      }
+
       // Validate filter structure
       this.validateFilterStructure(params.filterBranch);
     }
