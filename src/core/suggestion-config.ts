@@ -159,6 +159,13 @@ export const WORKFLOW_SUGGESTIONS: Record<string, string[]> = {
   updateFilters: [
     "⏳ Note: Dynamic lists may take 5-15 minutes to fully evaluate new filters",
     "📊 Check membership: {operation: 'getMembers', listId: 'list_id'}"
+  ],
+
+  // Search operations
+  search: [
+    "💡 Use searchProperties to find specific properties without overwhelming context",
+    "🔄 Narrow results with groupName parameter or adjust limit",
+    "📝 Use getProperty for full details of a specific property"
   ]
 };
 
@@ -276,6 +283,13 @@ export const WORKFLOW_PATTERNS: Record<string, Record<string, string[]>> = {
   },
   
   Properties: {
+    'property-search': [
+      "🔍 Property Search Workflow:",
+      "1️⃣ Search properties: {operation: 'search', objectType: 'contacts', query: 'email', limit: 15}",
+      "2️⃣ Review results to find the property name",
+      "3️⃣ Get full details: {operation: 'get', objectType: 'contacts', propertyName: 'email'}",
+      "💡 Tip: Use specific search terms for better matches (e.g., 'email' not 'e')"
+    ],
     'custom-properties': [
       "📋 Custom Properties Workflow:",
       "1️⃣ List existing: {operation: 'list', objectType: 'contacts'} to see available properties",

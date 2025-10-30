@@ -1,5 +1,6 @@
 import { ToolDefinition } from '../../core/types.js';
 
+import { tool as searchTool } from './properties.search.js';
 import { tool as listTool } from './properties.list.js';
 import { tool as getTool } from './properties.get.js';
 import { tool as createTool } from './properties.create.js';
@@ -10,6 +11,7 @@ import { tool as createGroupTool } from './properties.createGroup.js';
 import { tool as updateGroupTool } from './properties.updateGroup.js';
 
 export const propertiesTools: ToolDefinition[] = [
+  searchTool,
   listTool,
   getTool,
   createTool,

@@ -54,7 +54,9 @@
       "Bash(npm start)",
       "Bash(HUBSPOT_ACCESS_TOKEN=test_token_1234567890_abcdef node test-final-associations.js)",
       "Bash(cat:*)",
-      "Bash(env)"
+      "Bash(env)",
+      "WebFetch(domain:github.hubspot.com)",
+      "Bash(npm run:*)"
     ],
     "deny": [],
     "additionalDirectories": [
