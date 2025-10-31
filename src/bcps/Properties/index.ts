@@ -1,7 +1,7 @@
 import { ToolDefinition } from '../../core/types.js';
 
 import { tool as searchTool } from './properties.search.js';
-import { tool as listTool } from './properties.list.js';
+// import { tool as listTool } from './properties.list.js'; // DISABLED: Returns ALL properties (200-500+), causes context window issues. Use searchProperties instead.
 import { tool as getTool } from './properties.get.js';
 import { tool as createTool } from './properties.create.js';
 import { tool as updateTool } from './properties.update.js';
@@ -11,8 +11,8 @@ import { tool as createGroupTool } from './properties.createGroup.js';
 import { tool as updateGroupTool } from './properties.updateGroup.js';
 
 export const propertiesTools: ToolDefinition[] = [
-  searchTool,
-  listTool,
+  searchTool,        // Use this to find properties with filters - avoids context window issues
+  // listTool,       // DISABLED: Returns ALL properties (200-500+), use searchProperties instead
   getTool,
   createTool,
   updateTool,
