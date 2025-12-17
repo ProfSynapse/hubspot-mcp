@@ -275,12 +275,13 @@ export class BcpToolDelegator implements BcpDelegator {
         // Need to check Deals domain - may use simple names
       },
       Associations: {
-        // Associations likely uses descriptive names
-        batchCreate: 'batchCreate',
-        batchCreateDefault: 'batchCreateDefault',
-        batchRead: 'batchRead',
-        create: 'create',
-        createDefault: 'createDefault',
+        // Associations uses descriptive names with 'Association(s)' suffix
+        batchCreate: 'batchCreateAssociations',
+        batchCreateDefault: 'batchCreateDefaultAssociations',
+        batchRead: 'batchReadAssociations',
+        create: 'createAssociation',
+        createDefault: 'createDefaultAssociation',
+        list: 'listAssociations',
         getAssociationTypeReference: 'getAssociationTypeReference',
         getAssociationTypes: 'getAssociationTypes'
       },
@@ -292,6 +293,7 @@ export class BcpToolDelegator implements BcpDelegator {
         get: 'getProperty',
         create: 'createProperty',
         update: 'updateProperty',
+        search: 'searchProperties',
         listGroups: 'listPropertyGroups',
         getGroup: 'getPropertyGroup',
         createGroup: 'createPropertyGroup',
