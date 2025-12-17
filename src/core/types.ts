@@ -358,3 +358,84 @@ export function validateParams<T>(
 
   return result as T;
 }
+
+// ============================================================================
+// Meta-Tools Types (for hubspot_getTools and hubspot_useTools)
+// ============================================================================
+
+/**
+ * Summary of a domain for getTools discovery
+ */
+export interface DomainSummary {
+  name: string;
+  description: string;
+  operationCount: number;
+  operations: string[];
+}
+
+/**
+ * Summary of an operation including its schema
+ */
+export interface OperationSummary {
+  name: string;
+  description: string;
+  schema: InputSchema;
+}
+
+/**
+ * Detailed operation information for specific operation discovery
+ */
+export interface OperationDetail {
+  domain: string;
+  operation: string;
+  description: string;
+  schema: InputSchema;
+}
+
+/**
+ * Parameters for hubspot_getTools
+ */
+export interface GetToolsParams {
+  domain?: string;
+  operation?: string;
+  includeContext?: boolean;
+}
+
+/**
+ * Parameters for hubspot_useTools
+ */
+export interface UseToolsParams {
+  context: string;
+  goals: string;
+  domain: string;
+  operation: string;
+  parameters?: Record<string, any>;
+}
+
+/**
+ * Domain configuration for registration
+ */
+export interface DomainConfig {
+  operations: string[];
+  description: string;
+}
+
+/**
+ * Schema context for enrichment (from context providers)
+ */
+export interface SchemaContext {
+  field: string;
+  values: Array<{ value: string; label: string }>;
+  description?: string;
+  required?: boolean;
+}
+
+/**
+ * Extended InputSchema with context enrichment
+ */
+export interface EnrichedInputSchema extends InputSchema {
+  properties: Record<string, SchemaProperty & {
+    enum?: string[];
+    enumDescriptions?: Record<string, string>;
+  }>;
+}

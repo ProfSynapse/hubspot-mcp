@@ -1,22 +1,21 @@
 /**
  * Location: /src/http-server-sdk.ts
- * 
- * MCP HTTP Server using Official SDK with Delegated BCP Tools.
- * 
- * This implementation uses the official MCP SDK StreamableHTTPServerTransport 
- * while reusing all existing BCP tool implementations through a clean delegation 
- * pattern. Follows SOLID principles by separating transport concerns from 
- * business logic.
- * 
+ *
+ * MCP HTTP Server using Official SDK with Meta-Tools Architecture.
+ *
+ * Exposes two tools to LLMs:
+ * - hubspot_getTools: Discover available operations and their schemas
+ * - hubspot_useTools: Execute any operation with server-side validation
+ *
  * Used by:
  * - Railway deployment: Entry point for the production server
  * - Development: Local server for testing and development
- * 
- * How it works with other files:
- * - Uses BcpToolDelegator to map operations to existing BCP tools
- * - Uses ToolRegistrationFactory to register consolidated domain tools
- * - Leverages existing configuration, logging, and error handling utilities
- * - Maintains session state and transport management for MCP protocol
+ *
+ * How it works:
+ * - MetaToolsRegistrationFactory registers the two meta-tools
+ * - BcpToolDelegator maps domain/operation to actual BCP tool handlers
+ * - SchemaRegistry provides runtime schema discovery from BCP tools
+ * - Context providers enrich schemas with dynamic data (deal stages, etc.)
  */
 
 import express, { Request, Response } from 'express';
@@ -26,9 +25,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest, JSONRPCMessage } from '@modelcontextprotocol/sdk/types.js';
 
-// Import our new delegation architecture
+// Import core architecture
 import { BcpToolDelegator } from './core/bcp-tool-delegator.js';
-import { BcpToolRegistrationFactory } from './core/tool-registration-factory.js';
+import { MetaToolsRegistrationFactory } from './core/meta-tools-factory.js';
 import { ContextRegistry, DealPipelineContextProvider } from './core/context/index.js';
 
 // Import existing configuration and utilities
@@ -192,18 +191,18 @@ async function getOrCreateMCPServer(): Promise<{ server: McpServer; delegator: B
 
   // Create delegation architecture components
   const delegator = new BcpToolDelegator();
-  const toolFactory = new BcpToolRegistrationFactory(contextRegistry);
 
-  // Register all domain tools using the delegation pattern
+  // Register meta-tools (hubspot_getTools + hubspot_useTools)
   try {
+    const toolFactory = new MetaToolsRegistrationFactory(contextRegistry);
     await toolFactory.registerAllTools(server, delegator);
-    logger.info('✅ All BCP tools registered successfully through delegation layer');
-    
+    logger.info('✅ Meta-tools registered: hubspot_getTools, hubspot_useTools');
+
     // Log cache statistics
     const cacheStats = delegator.getCacheStats();
     logger.info(`📊 Cache initialized: ${cacheStats.bcpCount} BCPs, ${cacheStats.toolCount} tools`);
   } catch (error) {
-    logger.error('❌ Failed to register BCP tools:', error);
+    logger.error('❌ Failed to register tools:', error);
     throw error;
   }
 
@@ -634,9 +633,9 @@ app.get('/health', (req, res) => {
   const sessionStats = sessionManager.getStats();
   const hasGlobalServer = globalMCPServer !== null;
   const delegatorStats = globalDelegator ? globalDelegator.getCacheStats() : { bcpCount: 0, toolCount: 0 };
-  
-  res.json({ 
-    status: 'healthy', 
+
+  res.json({
+    status: 'healthy',
     service: 'hubspot-mcp-sdk',
     version: '0.1.0',
     timestamp: new Date().toISOString(),
@@ -650,7 +649,8 @@ app.get('/health', (req, res) => {
       bcpCount: delegatorStats.bcpCount,
       toolCount: delegatorStats.toolCount
     },
-    architecture: 'enhanced-delegated-bcp-with-session-management'
+    tools: ['hubspot_getTools', 'hubspot_useTools'],
+    architecture: 'meta-tools'
   });
 });
 

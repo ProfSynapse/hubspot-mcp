@@ -1,14 +1,14 @@
 /**
  * Location: /src/core/bcp-tool-delegator.ts
- * 
- * BCP Tool Delegator implementation providing mapping between domain/operation 
- * combinations and existing BCP tools. Handles parameter forwarding, response 
+ *
+ * BCP Tool Delegator implementation providing mapping between domain/operation
+ * combinations and existing BCP tools. Handles parameter forwarding, response
  * formatting, and includes caching for performance optimization.
- * 
+ *
  * Used by:
- * - src/core/tool-registration-factory.ts: Uses delegator to handle tool execution
+ * - src/core/meta-tools-factory.ts: Uses delegator for hubspot_useTools execution
  * - src/http-server-sdk.ts: Creates and configures the delegator instance
- * 
+ *
  * How it works with other files:
  * - Dynamically imports existing BCP tool arrays from src/bcps/index.ts files
  * - Maps operation calls to specific tool handlers within each BCP
