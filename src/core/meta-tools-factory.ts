@@ -55,22 +55,22 @@ export class MetaToolsRegistrationFactory {
     const domainNames = Object.keys(DOMAIN_CONFIGS) as [string, ...string[]];
 
     const schema = {
-      domain: z.enum(domainNames)
-        .optional()
-        .describe('The HubSpot domain to discover operations for (optional - omit to list all domains)'),
-      operation: z.string()
-        .optional()
-        .describe('Specific operation to get schema for (optional - requires domain to be specified)'),
+      tools: z.array(z.object({
+        domain: z.enum(domainNames).describe('The HubSpot domain'),
+        operation: z.string().describe('The operation name')
+      })).min(1).describe('Array of {domain, operation} pairs to get schemas for (REQUIRED)'),
       includeContext: z.boolean()
         .optional()
         .default(true)
-        .describe('Whether to include context-enriched schemas (e.g., valid deal stages from HubSpot). Default: true')
+        .describe('Include context-enriched schemas (e.g., valid deal stages). Default: true')
     };
 
     const handler = createGetToolsHandler(this.contextRegistry);
+    const description = getGetToolsDescription();
 
     server.tool(
       'hubspot_getTools',
+      description,
       schema,
       async (params) => {
         return handler(params as any);
@@ -89,23 +89,25 @@ export class MetaToolsRegistrationFactory {
     const schema = {
       context: z.string()
         .min(1)
-        .describe('Contextual information about the current task or workflow. Explain what you are trying to accomplish in the broader context. This helps with error messages and activity tracking. (REQUIRED)'),
+        .describe('What you are trying to accomplish (REQUIRED)'),
       goals: z.string()
         .min(1)
-        .describe('Specific goals or objectives for this operation. What are you trying to achieve with this particular API call? (REQUIRED)'),
+        .describe('Specific goals for this operation (REQUIRED)'),
       domain: z.enum(domainNames)
-        .describe('The HubSpot domain to operate on (REQUIRED)'),
+        .describe('The HubSpot domain (REQUIRED)'),
       operation: z.string()
-        .describe('The operation to perform within the domain (REQUIRED). Use hubspot_getTools to discover available operations.'),
+        .describe('The operation to perform (REQUIRED)'),
       parameters: z.record(z.any())
         .optional()
-        .describe('Operation-specific parameters as defined by the operation schema. Use hubspot_getTools to discover required and optional parameters for each operation.')
+        .describe('Operation-specific parameters from hubspot_getTools schema')
     };
 
     const handler = createUseToolsHandler(delegator);
+    const description = getUseToolsDescription();
 
     server.tool(
       'hubspot_useTools',
+      description,
       schema,
       async (params) => {
         return handler(params as any);

@@ -1,14 +1,12 @@
 /**
  * Meta-Tools Handler for hubspot_getTools and hubspot_useTools
  *
- * Implements the handlers for the two meta-tools that replace 12 domain tools.
- *
  * Used by:
  * - meta-tools-factory.ts: Registers these handlers with MCP server
  *
  * Key Features:
- * - getToolsHandler: Schema discovery with 3 modes (all domains, domain operations, specific operation)
- * - useToolsHandler: Universal tool execution with enhanced error messages
+ * - getToolsHandler: Returns detailed schema for a specific domain+operation
+ * - useToolsHandler: Universal tool execution with server-side validation
  */
 
 import { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -19,6 +17,7 @@ import { ContextRegistry } from './context/index.js';
 
 /**
  * Create the getTools handler
+ * Returns detailed parameter schemas for one or more domain+operation pairs
  */
 export function createGetToolsHandler(
   contextRegistry?: ContextRegistry
@@ -29,72 +28,58 @@ export function createGetToolsHandler(
     const includeContext = params.includeContext !== false; // Default true
 
     try {
-      // Case 1: No params - return all domains
-      if (!params.domain) {
-        const domains = await registry.getAllDomains();
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              domains,
-              totalDomains: domains.length,
-              totalOperations: domains.reduce((sum, d) => sum + d.operationCount, 0)
-            }, null, 2)
-          }]
-        };
-      }
-
-      // Validate domain
-      if (!registry.isDomainValid(params.domain)) {
-        const availableDomains = Object.keys(DOMAIN_CONFIGS).join(', ');
+      // Validate tools array is provided
+      if (!params.tools || !Array.isArray(params.tools) || params.tools.length === 0) {
         return {
           isError: true,
           content: [{
             type: 'text',
-            text: `Unknown domain: ${params.domain}\n\nAvailable domains: ${availableDomains}`
+            text: 'Missing required parameter: tools (array of {domain, operation} objects)\n\nRefer to the tool description for available domains and operations.'
           }]
         };
       }
 
-      // Case 2: Domain only - return all operations for domain
-      if (!params.operation) {
-        const operations = await registry.getDomainOperations(params.domain, includeContext);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              domain: params.domain,
-              description: DOMAIN_CONFIGS[params.domain].description,
-              operationCount: operations.length,
-              operations
-            }, null, 2)
-          }]
-        };
+      const results: any[] = [];
+      const errors: string[] = [];
+
+      for (const tool of params.tools) {
+        // Validate domain
+        if (!tool.domain) {
+          errors.push(`Missing domain in tool request`);
+          continue;
+        }
+        if (!registry.isDomainValid(tool.domain)) {
+          errors.push(`Unknown domain: ${tool.domain}`);
+          continue;
+        }
+
+        // Validate operation
+        if (!tool.operation) {
+          const availableOps = registry.getOperationsForDomain(tool.domain);
+          errors.push(`Missing operation for ${tool.domain}. Available: ${availableOps.join(', ')}`);
+          continue;
+        }
+        if (!registry.isOperationValid(tool.domain, tool.operation)) {
+          const availableOps = registry.getOperationsForDomain(tool.domain);
+          errors.push(`Operation '${tool.operation}' not found in ${tool.domain}. Available: ${availableOps.join(', ')}`);
+          continue;
+        }
+
+        // Get schema for this tool
+        const schema = await registry.getOperationSchema(tool.domain, tool.operation, includeContext);
+        results.push(schema);
       }
 
-      // Validate operation
-      if (!registry.isOperationValid(params.domain, params.operation)) {
-        const availableOps = registry.getOperationsForDomain(params.domain);
-        return {
-          isError: true,
-          content: [{
-            type: 'text',
-            text: `Operation '${params.operation}' not found in domain '${params.domain}'.\n\nAvailable operations: ${availableOps.join(', ')}`
-          }]
-        };
+      // Return results (and any errors)
+      const response: any = { schemas: results };
+      if (errors.length > 0) {
+        response.errors = errors;
       }
-
-      // Case 3: Domain + operation - return detailed schema
-      const operationDetail = await registry.getOperationSchema(
-        params.domain,
-        params.operation,
-        includeContext
-      );
 
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify(operationDetail, null, 2)
+          text: JSON.stringify(response, null, 2)
         }]
       };
     } catch (error) {
@@ -102,7 +87,7 @@ export function createGetToolsHandler(
         isError: true,
         content: [{
           type: 'text',
-          text: `Failed to get tools: ${error instanceof Error ? error.message : String(error)}`
+          text: `Failed to get schemas: ${error instanceof Error ? error.message : String(error)}`
         }]
       };
     }
@@ -231,51 +216,34 @@ export function createUseToolsHandler(
 }
 
 /**
- * Get the description for hubspot_getTools tool
+ * Generate the description for hubspot_getTools tool
+ * Includes the full catalog of domains and operations
  */
 export function getGetToolsDescription(): string {
   const domainList = Object.entries(DOMAIN_CONFIGS)
-    .map(([name, config]) => `**${name}** (${config.operations.length} operations): ${config.operations.join(', ')}`)
+    .map(([name, config]) => `• ${name}: ${config.operations.join(', ')}`)
     .join('\n');
 
   const totalOps = Object.values(DOMAIN_CONFIGS)
     .reduce((sum, config) => sum + config.operations.length, 0);
 
-  return `Discover available HubSpot operations and their detailed parameter schemas.
+  return `Get parameter schemas for HubSpot operations. Pass an array of {domain, operation} pairs to get all schemas you need in one call.
 
-Use this tool to:
-- Browse all available HubSpot operations across 12 domains
-- Get detailed parameter schemas for specific operations
-- Understand required vs optional parameters
-- Access context-enriched schemas (e.g., valid deal stages, property groups)
-
-Available Domains & Operations:
+AVAILABLE OPERATIONS (${totalOps} total):
 
 ${domainList}
 
-TOTAL: ${totalOps} operations across 12 domains
+EXAMPLE:
+tools: [{domain: "Contacts", operation: "create"}, {domain: "Associations", operation: "create"}]
 
-To use an operation, first call this tool to get its schema, then call hubspot_useTools with the domain, operation, and parameters.`;
+Returns schemas with required/optional parameters for each operation.`;
 }
 
 /**
- * Get the description for hubspot_useTools tool
+ * Generate the description for hubspot_useTools tool
  */
 export function getUseToolsDescription(): string {
-  return `Execute any HubSpot operation across all 12 domains.
+  return `Execute a HubSpot operation. Use hubspot_getTools first to get the parameter schema for your operation.
 
-This is the universal tool for interacting with HubSpot. It handles all 72 operations including:
-- CRM object management (Companies, Contacts, Deals, Notes, etc.)
-- Associations between objects
-- Custom properties and property groups
-- Marketing tools (Emails, Blog Posts)
-- Sales tools (Quotes with line items)
-- List management (MANUAL, DYNAMIC, SNAPSHOT)
-- Activity history tracking
-
-Required workflow:
-1. First call hubspot_getTools to discover available operations and their schemas
-2. Then call this tool with the appropriate domain, operation, and parameters
-
-The context and goals parameters help track your workflow and provide better error messages.`;
+Parameters are validated server-side against the operation's schema before execution.`;
 }

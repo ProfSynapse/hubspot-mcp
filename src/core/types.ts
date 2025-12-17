@@ -396,8 +396,7 @@ export interface OperationDetail {
  * Parameters for hubspot_getTools
  */
 export interface GetToolsParams {
-  domain?: string;
-  operation?: string;
+  tools: Array<{ domain: string; operation: string }>;
   includeContext?: boolean;
 }
 
