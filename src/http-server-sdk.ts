@@ -138,39 +138,30 @@ app.use(cors({
   credentials: true
 }));
 
-// Global MCP server instance to prevent duplicate tool registration
-let globalMCPServer: McpServer | null = null;
+// Global singletons — delegator and contextRegistry are expensive to initialize
+// (HubSpot API calls, BCP cache). McpServer is created per-session (cheap).
+let globalMCPServer: McpServer | null = null; // kept for health check compatibility
 let globalDelegator: BcpToolDelegator | null = null;
+let globalContextRegistry: ContextRegistry | null = null;
 
 /**
- * Create or return existing MCP Server with Delegated BCP Tools
- * This prevents duplicate tool registration on session reconnects
+ * Initialize global singletons (delegator + contextRegistry).
+ * These are expensive (HubSpot API calls) and shared across all sessions.
  */
-async function getOrCreateMCPServer(): Promise<{ server: McpServer; delegator: BcpToolDelegator }> {
-  // Return existing server if already created
-  if (globalMCPServer && globalDelegator) {
-    logger.debug('♻️ Reusing existing MCP Server instance');
-    return { server: globalMCPServer, delegator: globalDelegator };
+async function initializeGlobalSingletons(): Promise<{ delegator: BcpToolDelegator; contextRegistry: ContextRegistry }> {
+  // Return existing singletons if already created
+  if (globalDelegator && globalContextRegistry) {
+    logger.debug('♻️ Reusing existing global singletons');
+    return { delegator: globalDelegator, contextRegistry: globalContextRegistry };
   }
 
-  logger.info('🚀 Creating new MCP Server with delegated BCP tools...');
-  
+  logger.info('🚀 Initializing global singletons (delegator + context)...');
+
   // Validate HubSpot API token
   const apiKey = process.env.HUBSPOT_ACCESS_TOKEN;
   if (!apiKey) {
     throw new Error('HUBSPOT_ACCESS_TOKEN environment variable is required');
   }
-  
-  // Create the MCP server instance
-  const server = new McpServer({
-    name: 'hubspot-mcp',
-    version: '0.1.0',
-  }, {
-    capabilities: {
-      tools: {},
-      logging: {}
-    }
-  });
 
   // Create and initialize context registry
   logger.info('🔧 Initializing context providers...');
@@ -192,25 +183,48 @@ async function getOrCreateMCPServer(): Promise<{ server: McpServer; delegator: B
   // Create delegation architecture components
   const delegator = new BcpToolDelegator();
 
-  // Register meta-tools (hubspot_getTools + hubspot_useTools)
+  // Log cache statistics
+  const cacheStats = delegator.getCacheStats();
+  logger.info(`📊 Cache initialized: ${cacheStats.bcpCount} BCPs, ${cacheStats.toolCount} tools`);
+
+  // Store global references
+  globalDelegator = delegator;
+  globalContextRegistry = contextRegistry;
+
+  return { delegator, contextRegistry };
+}
+
+/**
+ * Create a fresh McpServer instance for a new session.
+ * McpServer + tool registration is cheap — safe to do per session.
+ * This prevents the SDK from replacing _transport on connect(),
+ * which caused old sessions to lose their response path and hang.
+ */
+async function createSessionMCPServer(delegator: BcpToolDelegator, contextRegistry: ContextRegistry): Promise<McpServer> {
+  const server = new McpServer({
+    name: 'hubspot-mcp',
+    version: '0.1.0',
+  }, {
+    capabilities: {
+      tools: {},
+      logging: {}
+    }
+  });
+
+  // Register meta-tools (hubspot_getTools + hubspot_useTools) on this session's server
   try {
     const toolFactory = new MetaToolsRegistrationFactory(contextRegistry);
     await toolFactory.registerAllTools(server, delegator);
-    logger.info('✅ Meta-tools registered: hubspot_getTools, hubspot_useTools');
-
-    // Log cache statistics
-    const cacheStats = delegator.getCacheStats();
-    logger.info(`📊 Cache initialized: ${cacheStats.bcpCount} BCPs, ${cacheStats.toolCount} tools`);
+    logger.debug('✅ Meta-tools registered on session McpServer');
   } catch (error) {
-    logger.error('❌ Failed to register tools:', error);
+    logger.error('❌ Failed to register tools on session McpServer:', error);
     throw error;
   }
 
-  // Store global references
+  // Track for health check (shows last created server)
   globalMCPServer = server;
-  globalDelegator = delegator;
 
-  return { server, delegator };
+  return server;
 }
 
 // Session state management
@@ -282,7 +296,7 @@ class SessionManager {
     }
   }
 
-  closeSession(sessionId: string): void {
+  async closeSession(sessionId: string): Promise<void> {
     const session = this.sessions.get(sessionId);
     if (!session) return;
 
@@ -297,9 +311,16 @@ class SessionManager {
       // Clean up event store
       session.eventStore.cleanupStream(sessionId);
 
+      // Close per-session McpServer
+      try {
+        await session.mcpServer.close?.();
+      } catch (mcpError) {
+        logger.debug({ mcpError, sessionId }, 'Error closing session McpServer (non-fatal)');
+      }
+
       // Close transport
       session.transport.close?.();
-      
+
       // Update status
       session.status = 'closed';
     } catch (error) {
@@ -319,7 +340,9 @@ class SessionManager {
     try {
       // Simple heartbeat - could be enhanced with ping/pong mechanism
       logger.debug({ sessionId }, 'Heartbeat sent');
-      session.lastActivity = Date.now();
+      // NOTE: Do NOT update session.lastActivity here — it's already updated
+      // in getSession() on every real request. Updating it here prevents
+      // stale session cleanup (zombie sessions never expire).
     } catch (error) {
       logger.error({ error, sessionId }, 'Heartbeat failed, marking session for cleanup');
       session.status = 'closing';
@@ -476,9 +499,13 @@ const handleMCPPost = async (req: Request, res: Response) => {
         }
       };
 
-      // Get or create MCP server (reuses existing server to prevent duplicate tool registration)
-      const { server: mcpServer } = await getOrCreateMCPServer();
-      
+      // Initialize global singletons (delegator + context) if not already done
+      const { delegator, contextRegistry } = await initializeGlobalSingletons();
+
+      // Create a fresh McpServer for this session — prevents transport replacement bug
+      // where SDK replaces _transport on connect(), causing old sessions to hang
+      const mcpServer = await createSessionMCPServer(delegator, contextRegistry);
+
       try {
         await mcpServer.connect(transport);
         logger.info('MCP server connected to new transport');
@@ -692,6 +719,7 @@ const shutdown = async (signal: string) => {
     // Clear global references
     globalMCPServer = null;
     globalDelegator = null;
+    globalContextRegistry = null;
     
     logger.info('✅ Session cleanup complete');
   } catch (error) {
