@@ -16,12 +16,11 @@
  */
 
 import { BCP } from '../../core/types.js';
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as deleteTool } from './delete.tool.js';
-import { tool as listTool } from './list.tool.js';
-import { tool as recentTool } from './recent.tool.js';
+import { tool as createTool } from './emails.create.js';
+import { tool as getTool } from './emails.get.js';
+import { tool as updateTool } from './emails.update.js';
+import { tool as listTool } from './emails.list.js';
+import { tool as recentTool } from './emails.recent.js';
 
 /**
  * Email BCP definition
@@ -34,7 +33,6 @@ export const bcp: BCP = {
     createTool,
     getTool,
     updateTool,
-    deleteTool,
     listTool,
     recentTool
   ]
@@ -47,7 +45,6 @@ export const emailTools = [
   createTool,
   getTool,
   updateTool,
-  deleteTool,
   listTool,
   recentTool
 ];

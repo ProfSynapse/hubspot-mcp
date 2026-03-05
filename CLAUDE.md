@@ -138,6 +138,58 @@ This project implements a HubSpot integration using the Model Context Protocol (
 To add a new HubSpot domain:
 1. Create a new directory under `src/bcps/YourDomain/`
 2. Implement a service extending `HubspotBaseService`
-3. Create tool files following the existing pattern
-4. Export tools in an `index.ts` file
-5. Register the BCP in `src/core/server.ts` in the `registerAllTools()` method
+3. Create individual tool files (e.g., `domain.get.ts`, `domain.create.ts`) following the existing pattern
+4. Import response enhancer and use `enhanceDomainResponse()` in each tool
+5. Export tools in an `index.ts` file as a BCP
+6. Register the BCP in `src/core/bcp-tool-delegator.ts` and `src/core/tool-registration-factory.ts`
+
+## Response Enhancement System
+
+All BCP tools should include **contextual suggestions** to guide users through proper workflows:
+
+### Implementation Pattern
+
+```typescript
+// In your tool file
+import { enhanceNotesResponse } from '../../core/response-enhancer.js';
+
+// In your tool handler
+const response = {
+  success: true,
+  data: result,
+  message: 'Success message'
+};
+
+return enhanceNotesResponse(response, 'operationName', params);
+```
+
+### Available Enhancers
+
+- `enhanceNotesResponse()` - For Notes domain
+- `enhanceContactsResponse()` - For Contacts domain  
+- `enhanceCompaniesResponse()` - For Companies domain
+- `enhanceDealsResponse()` - For Deals domain
+- `enhanceResponse()` - Generic enhancer with custom domain
+
+### Configuration
+
+Suggestions are configured in `src/core/suggestion-config.ts`:
+
+- **PARAMETER_SUGGESTIONS**: Parameter-based hints (e.g., when `contactId` is used)
+- **WORKFLOW_SUGGESTIONS**: Operation-based workflow guidance  
+- **DOMAIN_SUGGESTIONS**: Domain-specific contextual information
+
+### Example Output
+
+```json
+{
+  "success": true,
+  "data": {...},
+  "message": "Successfully created contact note",
+  "suggestions": [
+    "💡 Find contact: {operation: 'search', objectType: 'contacts', query: 'user@company.com'}",
+    "🔄 Workflow: First search for the contact, then create the note with the found contactId",
+    "📝 Notes are always associated with contacts, companies, or deals"
+  ]
+}
+```

@@ -39,6 +39,23 @@ export interface DealResponse {
   updatedAt: string;
 }
 
+export interface DealStage {
+  id: string;
+  label: string;
+  displayOrder: number;
+  probability: number;
+  closed: boolean;
+}
+
+export interface DealPipeline {
+  id: string;
+  label: string;
+  stages: DealStage[];
+  default: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export class DealsService extends HubspotBaseService {
   /**
    * Create a new deal
@@ -239,75 +256,59 @@ export class DealsService extends HubspotBaseService {
     }
   }
 
+
   /**
-   * Batch create deals
+   * Get all deal pipelines with their stages
    */
-  async batchCreateDeals(dealsInput: DealPropertiesInput[]): Promise<DealResponse[]> {
+  async getDealPipelines(): Promise<DealPipeline[]> {
     this.checkInitialized();
 
     try {
-      const inputs = dealsInput.map(properties => {
-        this.validateRequired(properties, ['dealname']);
-        
-        const apiProperties: { [key: string]: string } = {
-          dealname: properties.dealname,
-          ...(properties.pipeline && { pipeline: properties.pipeline }),
-          ...(properties.dealstage && { dealstage: properties.dealstage }),
-          ...(properties.amount && { amount: properties.amount }),
-          ...(properties.closedate && { closedate: properties.closedate }),
-          ...(properties.description && { description: properties.description }),
-          ...(properties.hubspot_owner_id && { hubspot_owner_id: properties.hubspot_owner_id })
-        };
+      const response = await this.client.crm.pipelines.pipelinesApi.getAll('deals');
 
-        return {
-          properties: apiProperties,
-          associations: []
-        };
-      });
-
-      const response = await this.client.crm.deals.batchApi.create({ inputs });
-
-      return response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties as DealProperties,
-        createdAt: new Date(deal.createdAt).toISOString(),
-        updatedAt: new Date(deal.updatedAt).toISOString()
+      return response.results.map(pipeline => ({
+        id: pipeline.id,
+        label: pipeline.label,
+        stages: pipeline.stages.map(stage => ({
+          id: stage.id,
+          label: stage.label,
+          displayOrder: stage.displayOrder,
+          probability: (stage.metadata as any)?.probability ? Number((stage.metadata as any).probability) / 100 : 0,
+          closed: Boolean((stage.metadata as any)?.isClosed)
+        })),
+        default: Boolean((pipeline as any).default),
+        createdAt: new Date(pipeline.createdAt).toISOString(),
+        updatedAt: new Date(pipeline.updatedAt).toISOString()
       }));
     } catch (error) {
-      throw this.handleApiError(error, 'Failed to batch create deals');
+      throw this.handleApiError(error, 'Failed to get deal pipelines');
     }
   }
 
   /**
-   * Batch update deals
+   * Get all available deal stages across all pipelines
    */
-  async batchUpdateDeals(updates: Array<{ id: string; properties: Partial<DealPropertiesInput> }>): Promise<DealResponse[]> {
+  async getAllDealStages(): Promise<{ stageId: string; stageName: string; pipelineId: string; pipelineName: string }[]> {
     this.checkInitialized();
 
     try {
-      const inputs = updates.map(({ id, properties }) => {
-        const apiProperties: { [key: string]: string } = Object.fromEntries(
-          Object.entries(properties)
-            .filter(([_, value]) => value !== undefined)
-            .map(([key, value]) => [key, value as string])
-        );
-
-        return {
-          id,
-          properties: apiProperties
-        };
+      const pipelines = await this.getDealPipelines();
+      const stages: { stageId: string; stageName: string; pipelineId: string; pipelineName: string }[] = [];
+      
+      pipelines.forEach(pipeline => {
+        pipeline.stages.forEach(stage => {
+          stages.push({
+            stageId: stage.id,
+            stageName: stage.label,
+            pipelineId: pipeline.id,
+            pipelineName: pipeline.label
+          });
+        });
       });
-
-      const response = await this.client.crm.deals.batchApi.update({ inputs });
-
-      return response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties as DealProperties,
-        createdAt: new Date(deal.createdAt).toISOString(),
-        updatedAt: new Date(deal.updatedAt).toISOString()
-      }));
+      
+      return stages;
     } catch (error) {
-      throw this.handleApiError(error, 'Failed to batch update deals');
+      throw this.handleApiError(error, 'Failed to get all deal stages');
     }
   }
 }

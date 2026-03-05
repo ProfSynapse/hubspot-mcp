@@ -1,0 +1,350 @@
+/**
+ * Location: /src/core/bcp-tool-delegator.ts
+ *
+ * BCP Tool Delegator implementation providing mapping between domain/operation
+ * combinations and existing BCP tools. Handles parameter forwarding, response
+ * formatting, and includes caching for performance optimization.
+ *
+ * Used by:
+ * - src/core/meta-tools-factory.ts: Uses delegator for hubspot_useTools execution
+ * - src/http-server-sdk.ts: Creates and configures the delegator instance
+ *
+ * How it works with other files:
+ * - Dynamically imports existing BCP tool arrays from src/bcps/index.ts files
+ * - Maps operation calls to specific tool handlers within each BCP
+ * - Provides caching layer for improved performance
+ * - Handles error propagation and parameter validation
+ */
+
+import { ToolDefinition, BCP, validateParams } from './types.js';
+import { ActivityHistoryService } from '../bcps/ActivityHistory/activityHistory.service.js';
+
+export interface BcpDelegator {
+  delegate(domain: string, operation: string, params: Record<string, any>): Promise<any>;
+  loadBcp(domain: string): Promise<BCP>;
+  validateParams(params: any, schema: any, toolName: string): void;
+  getOperations(domain: string): Promise<string[]>;
+  getActivityService(): ActivityHistoryService | undefined;
+}
+
+export class BcpToolDelegator implements BcpDelegator {
+  private bcpCache = new Map<string, BCP>();
+  private toolCache = new Map<string, Map<string, ToolDefinition>>();
+  private activityService?: ActivityHistoryService;
+
+  constructor(options?: { enableActivityLogging?: boolean; databaseUrl?: string }) {
+    // Initialize with empty caches - BCPs loaded on demand
+    if (options?.enableActivityLogging !== false && process.env.DATABASE_URL) {
+      this.activityService = new ActivityHistoryService();
+      this.activityService.initialize().catch(err =>
+        console.error('Activity service initialization failed:', err)
+      );
+    }
+  }
+
+  async delegate(domain: string, operation: string, params: Record<string, any>): Promise<any> {
+    // Extract and validate required common parameters
+    const { context, goals, ...operationParams } = params;
+
+    // Validate required common parameters
+    if (!context || typeof context !== 'string' || context.trim().length === 0) {
+      throw new Error('Missing required parameter: context (must be non-empty string)');
+    }
+
+    if (!goals || typeof goals !== 'string' || goals.trim().length === 0) {
+      throw new Error('Missing required parameter: goals (must be non-empty string)');
+    }
+
+    let result: any;
+    let success = true;
+    let errorMessage: string | undefined;
+
+    try {
+      // 1. Load domain BCP (cached)
+      const bcp = await this.loadBcp(domain);
+
+      // 2. Find specific tool (cached)
+      const tool = await this.findTool(domain, operation);
+
+      if (!tool || !tool.handler) {
+        throw new Error(`Handler not found for ${domain}.${operation}`);
+      }
+
+      // 3. Validate parameters against tool schema (without context/goals)
+      if (tool.inputSchema) {
+        this.validateParams(operationParams, tool.inputSchema, tool.name);
+      }
+
+      // 4. Execute tool handler with operation parameters only
+      result = await tool.handler(operationParams);
+
+      // 5. Log successful activity (but not for ActivityHistory itself to avoid recursion)
+      if (this.activityService && domain !== 'ActivityHistory') {
+        await this.activityService.logActivity(
+          domain,
+          operation,
+          operationParams,
+          result,
+          true,
+          undefined,
+          { context, goals }
+        );
+      }
+
+      return result;
+    } catch (error) {
+      success = false;
+      errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Log failed activity (but not for ActivityHistory itself to avoid recursion)
+      if (this.activityService && domain !== 'ActivityHistory') {
+        await this.activityService.logActivity(
+          domain,
+          operation,
+          operationParams,
+          null,
+          false,
+          errorMessage,
+          { context, goals }
+        );
+      }
+
+      // Enhance error with context
+      const enhancedError = new Error(
+        `Failed to delegate ${domain}.${operation}: ${errorMessage}`
+      );
+      enhancedError.cause = error;
+      throw enhancedError;
+    }
+  }
+
+  async loadBcp(domain: string): Promise<BCP> {
+    // Check cache first
+    if (this.bcpCache.has(domain)) {
+      return this.bcpCache.get(domain)!;
+    }
+
+    // Dynamic import based on domain
+    let bcp: BCP;
+    try {
+      switch (domain) {
+        case 'Companies':
+          const companiesBcp = await import('../bcps/Companies/index.js');
+          bcp = companiesBcp.bcp;
+          break;
+        case 'Contacts':
+          const contactsBcp = await import('../bcps/Contacts/index.js');
+          bcp = contactsBcp.bcp;
+          break;
+        case 'Notes':
+          const notesBcp = await import('../bcps/Notes/index.js');
+          bcp = notesBcp.notesBCP;
+          break;
+        case 'Associations':
+          const assocBcp = await import('../bcps/Associations/index.js');
+          bcp = { domain: 'Associations', description: 'Associations BCP', tools: assocBcp.associationTools };
+          break;
+        case 'Deals':
+          const dealsBcp = await import('../bcps/Deals/index.js');
+          bcp = dealsBcp.dealsBcp;
+          break;
+        case 'Products':
+          const productsBcp = await import('../bcps/Products/index.js');
+          bcp = { domain: 'Products', description: 'Products BCP', tools: Object.values(productsBcp.productTools) };
+          break;
+        case 'Properties':
+          const propsBcp = await import('../bcps/Properties/index.js');
+          bcp = { domain: 'Properties', description: 'Properties BCP', tools: propsBcp.propertiesTools };
+          break;
+        case 'Emails':
+          const emailsBcp = await import('../bcps/Emails/index.js');
+          bcp = emailsBcp.bcp;
+          break;
+        case 'BlogPosts':
+          const blogsBcp = await import('../bcps/BlogPosts/index.js');
+          bcp = blogsBcp.bcp;
+          break;
+        case 'Quotes':
+          const quotesBcp = await import('../bcps/Quotes/index.js');
+          bcp = quotesBcp.bcp;
+          break;
+        case 'ActivityHistory':
+          const activityBcp = await import('../bcps/ActivityHistory/index.js');
+          bcp = activityBcp.bcp;
+          // Inject the shared activity service into tool handlers
+          if (this.activityService) {
+            const activityService = this.activityService;
+            bcp.tools = bcp.tools.map(tool => ({
+              ...tool,
+              handler: async (params: any) => {
+                // Cast to any to bypass TypeScript handler signature issue
+                const handler = tool.handler as any;
+                return handler(params, { activityService });
+              }
+            }));
+          }
+          break;
+        case 'Lists':
+          const listsBcp = await import('../bcps/Lists/index.js');
+          bcp = listsBcp.bcp;
+          break;
+        default:
+          throw new Error(`Unknown BCP domain: ${domain}`);
+      }
+    } catch (error) {
+      throw new Error(`Failed to load BCP for domain ${domain}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Cache the loaded BCP
+    this.bcpCache.set(domain, bcp);
+    
+    // Cache individual tools for faster lookup
+    const toolMap = new Map<string, ToolDefinition>();
+    bcp.tools.forEach(tool => {
+      toolMap.set(tool.name, tool);
+    });
+    this.toolCache.set(domain, toolMap);
+
+    return bcp;
+  }
+
+  private async findTool(domain: string, operation: string): Promise<ToolDefinition | undefined> {
+    // Check tool cache first
+    const toolMap = this.toolCache.get(domain);
+    if (toolMap) {
+      // First try direct operation match
+      const directMatch = toolMap.get(operation);
+      if (directMatch) {
+        return directMatch;
+      }
+      
+      // Try mapped operation name
+      const mappedToolName = this.mapOperationToToolName(domain, operation);
+      if (mappedToolName) {
+        return toolMap.get(mappedToolName);
+      }
+    }
+
+    // Load BCP if not cached (will cache tools)
+    await this.loadBcp(domain);
+    const loadedToolMap = this.toolCache.get(domain);
+    if (loadedToolMap) {
+      // First try direct operation match
+      const directMatch = loadedToolMap.get(operation);
+      if (directMatch) {
+        return directMatch;
+      }
+      
+      // Try mapped operation name
+      const mappedToolName = this.mapOperationToToolName(domain, operation);
+      if (mappedToolName) {
+        return loadedToolMap.get(mappedToolName);
+      }
+    }
+    
+    return undefined;
+  }
+
+  /**
+   * Maps operation names to tool names for different domain naming conventions
+   * Some domains use simple operation names (e.g., 'recent', 'create')
+   * Others use descriptive tool names (e.g., 'getRecentNotes', 'createNote')
+   */
+  private mapOperationToToolName(domain: string, operation: string): string | null {
+    const operationMappings: Record<string, Record<string, string>> = {
+      Notes: {
+        // Individual Notes operations - map to specific tool names
+        get: 'get',
+        update: 'update',
+        createContactNote: 'createContactNote',
+        createCompanyNote: 'createCompanyNote',
+        createDealNote: 'createDealNote',
+        listContactNotes: 'listContactNotes',
+        listCompanyNotes: 'listCompanyNotes',
+        listDealNotes: 'listDealNotes'
+      },
+      Companies: {
+        // Companies uses simple operation names that match directly
+        // No mapping needed - direct operation names work
+      },
+      Contacts: {
+        // Contacts uses simple operation names that match directly
+        // No mapping needed - direct operation names work
+      },
+      Deals: {
+        // Need to check Deals domain - may use simple names
+      },
+      Associations: {
+        // Associations uses descriptive names with 'Association(s)' suffix
+        batchCreate: 'batchCreateAssociations',
+        batchCreateDefault: 'batchCreateDefaultAssociations',
+        batchRead: 'batchReadAssociations',
+        create: 'createAssociation',
+        createDefault: 'createDefaultAssociation',
+        list: 'listAssociations',
+        getAssociationTypeReference: 'getAssociationTypeReference',
+        getAssociationTypes: 'getAssociationTypes'
+      },
+      Products: {
+        // Products likely uses descriptive names - need to map
+      },
+      Properties: {
+        list: 'listProperties',
+        get: 'getProperty',
+        create: 'createProperty',
+        update: 'updateProperty',
+        search: 'searchProperties',
+        listGroups: 'listPropertyGroups',
+        getGroup: 'getPropertyGroup',
+        createGroup: 'createPropertyGroup',
+        updateGroup: 'updatePropertyGroup'
+      },
+      Emails: {
+        // Emails may use descriptive names - need to map
+      },
+      BlogPosts: {
+        // BlogPosts may use descriptive names - need to map
+      },
+      Quotes: {
+        // Quotes may use descriptive names - need to map
+      }
+    };
+
+    return operationMappings[domain]?.[operation] || null;
+  }
+
+  validateParams(params: any, schema: any, toolName: string): void {
+    try {
+      validateParams(params, schema, toolName);
+    } catch (error) {
+      throw new Error(`Parameter validation failed for ${toolName}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  async getOperations(domain: string): Promise<string[]> {
+    const bcp = await this.loadBcp(domain);
+    return bcp.tools.map(tool => tool.name);
+  }
+
+  // Utility method to clear caches (useful for testing)
+  clearCache(): void {
+    this.bcpCache.clear();
+    this.toolCache.clear();
+  }
+
+  // Method to get cache statistics
+  getCacheStats(): { bcpCount: number; toolCount: number } {
+    const toolCount = Array.from(this.toolCache.values())
+      .reduce((sum, toolMap) => sum + toolMap.size, 0);
+
+    return {
+      bcpCount: this.bcpCache.size,
+      toolCount
+    };
+  }
+
+  // Getter for activity service
+  getActivityService(): ActivityHistoryService | undefined {
+    return this.activityService;
+  }
+}

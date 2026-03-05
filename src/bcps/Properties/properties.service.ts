@@ -1,5 +1,6 @@
 import { HubspotBaseService } from '../../core/base-service.js';
 import { BcpError } from '../../core/types.js';
+import Fuse from 'fuse.js';
 
 export interface PropertyInput {
   name: string;
@@ -59,7 +60,22 @@ export interface PropertyGroupResponse {
 }
 
 export class PropertiesService extends HubspotBaseService {
-  
+
+  /**
+   * In-memory cache for properties
+   * Key format: `${objectType}:${includeArchived}`
+   */
+  private propertyCache: Map<string, {
+    properties: PropertyResponse[];
+    timestamp: number;
+    ttl: number;
+  }> = new Map();
+
+  /**
+   * Default cache TTL: 10 minutes
+   */
+  private readonly CACHE_TTL_MS = 10 * 60 * 1000;
+
   /**
    * Get all properties for a specific object type
    */
@@ -307,29 +323,145 @@ export class PropertiesService extends HubspotBaseService {
   }
 
   /**
+   * Search properties with fuzzy matching using fuse.js
+   */
+  async searchProperties(options: {
+    objectType: string;
+    query: string;
+    limit?: number;
+    includeArchived?: boolean;
+    groupName?: string;
+  }): Promise<PropertyResponse[]> {
+    this.checkInitialized();
+    this.validateRequired({ objectType: options.objectType, query: options.query }, ['objectType', 'query']);
+
+    // Get all properties (from cache or API)
+    const allProperties = await this.getCachedProperties(
+      options.objectType,
+      options.includeArchived || false
+    );
+
+    // Apply optional group filter
+    let propertiesToSearch = allProperties;
+    if (options.groupName) {
+      propertiesToSearch = allProperties.filter(p => p.groupName === options.groupName);
+    }
+
+    // Configure fuse.js for fuzzy search
+    const fuse = new Fuse(propertiesToSearch, {
+      keys: [
+        { name: 'name', weight: 0.4 },
+        { name: 'label', weight: 0.3 },
+        { name: 'description', weight: 0.2 },
+        { name: 'groupName', weight: 0.1 }
+      ],
+      threshold: 0.4,  // 0 = exact match, 1 = match anything
+      includeScore: false
+    });
+
+    // Search and limit results
+    const limit = Math.min(options.limit || 15, 50);
+    const results = fuse.search(options.query).slice(0, limit);
+
+    // Return just the property objects (fuse returns { item: property })
+    return results.map(result => result.item);
+  }
+
+  /**
+   * Get properties from cache or API
+   */
+  private async getCachedProperties(
+    objectType: string,
+    includeArchived: boolean
+  ): Promise<PropertyResponse[]> {
+    const cacheKey = `${objectType}:${includeArchived}`;
+    const cached = this.propertyCache.get(cacheKey);
+
+    // Check if cache is valid
+    if (cached && Date.now() - cached.timestamp < cached.ttl) {
+      return cached.properties;
+    }
+
+    // Fetch from API
+    const properties = await this.getPropertiesFromAPI(objectType, includeArchived);
+
+    // Store in cache
+    this.propertyCache.set(cacheKey, {
+      properties,
+      timestamp: Date.now(),
+      ttl: this.CACHE_TTL_MS
+    });
+
+    return properties;
+  }
+
+  /**
+   * Fetch properties from HubSpot API (with archived parameter)
+   */
+  private async getPropertiesFromAPI(
+    objectType: string,
+    includeArchived: boolean
+  ): Promise<PropertyResponse[]> {
+    const queryParams = includeArchived ? '?archived=true' : '';
+    const path = `/crm/v3/properties/${objectType}${queryParams}`;
+
+    try {
+      const response = await this.client.apiRequest({
+        method: 'GET',
+        path
+      });
+
+      const data = await response.json();
+      return (data.results || []).map((property: any) => this.transformPropertyResponse(property));
+    } catch (error) {
+      throw this.handleApiError(error, `Failed to get properties for ${objectType}`);
+    }
+  }
+
+  /**
+   * Clear property cache (useful for testing or manual invalidation)
+   */
+  clearPropertyCache(objectType?: string): void {
+    if (objectType) {
+      // Clear specific object type
+      const keysToDelete = Array.from(this.propertyCache.keys())
+        .filter(key => key.startsWith(`${objectType}:`));
+      keysToDelete.forEach(key => this.propertyCache.delete(key));
+    } else {
+      // Clear all
+      this.propertyCache.clear();
+    }
+  }
+
+  /**
    * Transform property API response to standard format
    */
   private transformPropertyResponse(property: any): PropertyResponse {
+    // Debug: Log the raw property response to understand the structure
+    if (!property) {
+      throw new BcpError('Property response is null or undefined', 'API_ERROR', 500);
+    }
+
     return {
-      name: property.name || '',
-      label: property.label || '',
-      description: property.description || '',
-      groupName: property.groupName || '',
-      type: property.type || '',
-      fieldType: property.fieldType || '',
+      name: property.name ?? '',
+      label: property.label ?? '',
+      description: property.description ?? '',
+      groupName: property.groupName ?? '',
+      type: property.type ?? '',
+      fieldType: property.fieldType ?? '',
       options: property.options?.map((option: any) => ({
-        label: option.label || '',
-        value: option.value || '',
-        displayOrder: option.displayOrder || 0,
-        hidden: option.hidden || false
+        label: option.label ?? '',
+        value: option.value ?? '',
+        displayOrder: option.displayOrder ?? 0,
+        hidden: option.hidden ?? false
       })),
-      formField: property.formField || false,
-      displayOrder: property.displayOrder || 0,
-      hidden: property.hidden || false,
-      hasUniqueValue: property.hasUniqueValue || false,
-      calculationFormula: property.calculationFormula,
-      createdAt: property.createdAt ? new Date(property.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: property.updatedAt ? new Date(property.updatedAt).toISOString() : new Date().toISOString(),
+      formField: property.formField ?? true, // Default should be true, not false
+      displayOrder: property.displayOrder ?? -1, // Default should be -1, not 0
+      hidden: property.hidden ?? false,
+      hasUniqueValue: property.hasUniqueValue ?? false,
+      calculationFormula: property.calculationFormula ?? undefined,
+      createdAt: property.createdAt || new Date().toISOString(),
+      updatedAt: property.updatedAt || new Date().toISOString(),
       createdUserId: property.createdUserId,
       updatedUserId: property.updatedUserId
     };
@@ -339,11 +471,15 @@ export class PropertiesService extends HubspotBaseService {
    * Transform property group API response to standard format
    */
   private transformPropertyGroupResponse(group: any): PropertyGroupResponse {
+    if (!group) {
+      throw new BcpError('Property group response is null or undefined', 'API_ERROR', 500);
+    }
+
     return {
-      name: group.name || '',
-      displayName: group.displayName || '',
-      displayOrder: group.displayOrder || 0,
-      properties: group.properties || []
+      name: group.name ?? '',
+      displayName: group.displayName ?? '',
+      displayOrder: group.displayOrder ?? -1, // Default should be -1, not 0
+      properties: group.properties ?? []
     };
   }
 }

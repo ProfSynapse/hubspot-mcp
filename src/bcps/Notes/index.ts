@@ -1,44 +1,39 @@
 /**
- * Notes BCP Index
- *
- * Exports all tools related to HubSpot Notes.
- */
-
-import { tool as createTool } from './create.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as deleteTool } from './delete.tool.js';
-import { tool as listTool } from './list.tool.js';
-import { tool as recentTool } from './recent.tool.js';
-import { tool as addAssociationTool } from './addAssociation.tool.js';
-import { tool as removeAssociationTool } from './removeAssociation.tool.js';
-import { tool as listAssociationsTool } from './listAssociations.tool.js';
-import { tool as createWithAssociationsTool } from './createWithAssociations.tool.js';
-import { ToolDefinition } from '../../core/types.js';
-
-/**
- * Array of all Note tools
- */
-export const noteTools: ToolDefinition[] = [
-  createTool,
-  getTool,
-  updateTool,
-  deleteTool,
-  listTool,
-  recentTool,
-  addAssociationTool,
-  removeAssociationTool,
-  listAssociationsTool,
-  createWithAssociationsTool
-];
-
-/**
  * Notes BCP
+ * 
+ * Provides tools for managing HubSpot notes, including creation with associations,
+ * retrieval, updating, and listing notes for different object types.
  */
-export const notesBCP = {
-  name: 'Notes',
-  description: 'Tools for managing notes in HubSpot',
-  tools: noteTools
+
+import { BCP } from '../../core/types.js';
+import { tool as getTool } from './notes.get.js';
+import { tool as updateTool } from './notes.update.js';
+import { tool as createContactNoteTool } from './notes.createContactNote.js';
+import { tool as createCompanyNoteTool } from './notes.createCompanyNote.js';
+import { tool as createDealNoteTool } from './notes.createDealNote.js';
+import { tool as listContactNotesTool } from './notes.listContactNotes.js';
+import { tool as listCompanyNotesTool } from './notes.listCompanyNotes.js';
+import { tool as listDealNotesTool } from './notes.listDealNotes.js';
+
+/**
+ * Notes BCP definition
+ */
+export const notesBCP: BCP = {
+  domain: 'Notes',
+  description: 'HubSpot notes management tools',
+  tools: [
+    getTool,
+    updateTool,
+    createContactNoteTool,
+    createCompanyNoteTool,
+    createDealNoteTool,
+    listContactNotesTool,
+    listCompanyNotesTool,
+    listDealNotesTool
+  ]
 };
 
-export default notesBCP;
+/**
+ * Array of Notes tools for compatibility
+ */
+export const noteTools = notesBCP.tools;

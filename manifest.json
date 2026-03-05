@@ -28,9 +28,11 @@
     "entry_point": "build/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["build/index.js"],
+      "args": ["${__dirname}/build/index.js"],
       "env": {
-        "HUBSPOT_ACCESS_TOKEN": "${user_config.hubspot_access_token}"
+        "HUBSPOT_ACCESS_TOKEN": "${user_config.hubspot_access_token}",
+        "NODE_ENV": "production",
+        "DEBUG": "true"
       }
     }
   },

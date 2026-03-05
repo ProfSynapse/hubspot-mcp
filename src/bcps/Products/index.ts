@@ -5,9 +5,9 @@
  * Provides tools for managing products in HubSpot.
  */
 
-import { tool as listTool } from './list.tool.js';
-import { tool as searchTool } from './search.tool.js';
-import { tool as getTool } from './get.tool.js';
+import { tool as listTool } from './products.list.js';
+import { tool as searchTool } from './products.search.js';
+import { tool as getTool } from './products.get.js';
 
 export const productTools = {
   list: listTool,

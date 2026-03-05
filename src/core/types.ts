@@ -61,6 +61,7 @@ export interface SchemaProperty {
   items?: any;
   properties?: Record<string, SchemaProperty>;
   required?: string[];
+  additionalProperties?: boolean | SchemaProperty;
 }
 
 /**
@@ -167,6 +168,79 @@ export class ApiError extends Error {
 
     return msg;
   }
+}
+
+/**
+ * Enhanced Contact Response Interfaces
+ * Types for contact responses with optional association data
+ */
+
+// Import association types for use in response interfaces
+import type {
+  AssociationType,
+  AssociationOptions,
+  EnhancedContact,
+  BaseContact,
+  AssociationData,
+  AssociatedCompany,
+  AssociatedDeal,
+  AssociatedNote,
+  AssociatedEmail,
+  AssociatedTask,
+  AssociatedMeeting,
+  AssociatedCall,
+  AssociatedTicket,
+  AssociatedQuote
+} from './association-enrichment-engine.js';
+
+// Re-export for convenience
+export type {
+  AssociationType,
+  AssociationOptions,
+  EnhancedContact,
+  BaseContact,
+  AssociationData,
+  AssociatedCompany,
+  AssociatedDeal,
+  AssociatedNote,
+  AssociatedEmail,
+  AssociatedTask,
+  AssociatedMeeting,
+  AssociatedCall,
+  AssociatedTicket,
+  AssociatedQuote
+};
+
+/**
+ * Standard contact search response
+ */
+export interface ContactSearchResponse {
+  message: string;
+  contacts: EnhancedContact[];
+  count: number;
+  error?: string;
+  suggestions?: string[];
+}
+
+/**
+ * Standard contact get response
+ */
+export interface ContactGetResponse {
+  message: string;
+  contact: EnhancedContact;
+  error?: string;
+  suggestions?: string[];
+}
+
+/**
+ * Standard contact recent response
+ */
+export interface ContactRecentResponse {
+  message: string;
+  contacts: EnhancedContact[];
+  count: number;
+  error?: string;
+  suggestions?: string[];
 }
 
 /**
@@ -283,4 +357,84 @@ export function validateParams<T>(
   }
 
   return result as T;
+}
+
+// ============================================================================
+// Meta-Tools Types (for hubspot_getTools and hubspot_useTools)
+// ============================================================================
+
+/**
+ * Summary of a domain for getTools discovery
+ */
+export interface DomainSummary {
+  name: string;
+  description: string;
+  operationCount: number;
+  operations: string[];
+}
+
+/**
+ * Summary of an operation including its schema
+ */
+export interface OperationSummary {
+  name: string;
+  description: string;
+  schema: InputSchema;
+}
+
+/**
+ * Detailed operation information for specific operation discovery
+ */
+export interface OperationDetail {
+  domain: string;
+  operation: string;
+  description: string;
+  schema: InputSchema;
+}
+
+/**
+ * Parameters for hubspot_getTools
+ */
+export interface GetToolsParams {
+  tools: Array<{ domain: string; operation: string }>;
+  includeContext?: boolean;
+}
+
+/**
+ * Parameters for hubspot_useTools
+ */
+export interface UseToolsParams {
+  context: string;
+  goals: string;
+  domain: string;
+  operation: string;
+  parameters?: Record<string, any>;
+}
+
+/**
+ * Domain configuration for registration
+ */
+export interface DomainConfig {
+  operations: string[];
+  description: string;
+}
+
+/**
+ * Schema context for enrichment (from context providers)
+ */
+export interface SchemaContext {
+  field: string;
+  values: Array<{ value: string; label: string }>;
+  description?: string;
+  required?: boolean;
+}
+
+/**
+ * Extended InputSchema with context enrichment
+ */
+export interface EnrichedInputSchema extends InputSchema {
+  properties: Record<string, SchemaProperty & {
+    enum?: string[];
+    enumDescriptions?: Record<string, string>;
+  }>;
 }

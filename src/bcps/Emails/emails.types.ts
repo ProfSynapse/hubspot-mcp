@@ -16,9 +16,9 @@
 export type EmailState = 'DRAFT' | 'PUBLISHED' | 'SCHEDULED' | 'ARCHIVED';
 
 /**
- * Email types supported by HubSpot
+ * Email types supported by HubSpot Marketing API v3
  */
-export type EmailType = 'REGULAR' | 'AUTOMATED' | 'AB_TEST' | 'FOLLOW_UP';
+export type EmailType = 'BATCH_EMAIL' | 'AUTOMATED_EMAIL' | 'BLOG_EMAIL' | 'RSS_EMAIL' | 'LEADNURTURING_EMAIL' | 'REGULAR' | 'AB_TEST' | 'FOLLOW_UP';
 
 /**
  * Sender information for an email
@@ -69,11 +69,13 @@ export interface Email {
 
 /**
  * Input interface for creating emails
- * Only name is required, all other properties are optional
+ * Name and templateId are required for HubSpot v3 API
  */
 export interface EmailCreateInput {
   name: string;              // Required: Internal name for the email
-  templateId?: string;       // Optional: Template ID (current implementation doesn't work properly)
+  templateId: string;        // Required: Template ID (required for HubSpot v3 API)
+  campaignId?: string;       // Optional: Campaign ID to associate with email
+  type?: EmailType;          // Optional: Email type (auto-assigned as BATCH_EMAIL if not specified)
   subject?: string;          // Email subject line
   from?: EmailSender;        // Sender information
   replyTo?: string;          // Reply-to email address

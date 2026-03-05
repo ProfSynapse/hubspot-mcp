@@ -25,6 +25,7 @@ export class HubspotBCPServer {
   private apiClient: HubspotApiClient;
   private propertyGroupsCache = new Map<string, string[]>();
   private blogsCache = new Map<string, string>(); // blogId -> blogName
+  private dealStagesCache = new Map<string, string>(); // stageId -> stageName
   
   /**
    * Create a new HubSpot BCP Server
@@ -68,12 +69,13 @@ export class HubspotBCPServer {
   }
 
   /**
-   * Fetch property groups and blogs at startup
+   * Fetch property groups, blogs, and deal stages at startup
    */
   private async fetchPropertyGroups(): Promise<void> {
     await Promise.all([
       this.fetchPropertyGroupsForObjects(),
-      this.fetchAvailableBlogs()
+      this.fetchAvailableBlogs(),
+      this.fetchDealStages()
     ]);
   }
 
@@ -146,6 +148,44 @@ export class HubspotBCPServer {
   }
 
   /**
+   * Fetch available deal stages at startup
+   */
+  private async fetchDealStages(): Promise<void> {
+    try {
+      console.error('[HUBSPOT-MCP] Fetching available deal stages...');
+      
+      const accessToken = process.env.HUBSPOT_ACCESS_TOKEN;
+      if (!accessToken) {
+        console.error('[HUBSPOT-MCP] No access token available, skipping deal stages fetch');
+        return;
+      }
+      
+      // Create a temporary DealsService instance to fetch stages
+      const { DealsService } = await import('../bcps/Deals/deals.service.js');
+      const tempConfig = {
+        hubspotAccessToken: accessToken,
+      };
+      
+      const service = new DealsService(tempConfig);
+      await service.init();
+      
+      const stages = await service.getAllDealStages();
+      
+      // Cache stage ID -> stage name with pipeline context
+      stages.forEach(stage => {
+        const stageLabel = `${stage.stageName} (${stage.pipelineName})`;
+        this.dealStagesCache.set(stage.stageId, stageLabel);
+      });
+      
+      console.error(`[HUBSPOT-MCP] Cached ${stages.length} deal stages:`, Array.from(this.dealStagesCache.values()).slice(0, 3).join(', ') + (stages.length > 3 ? '...' : ''));
+      
+    } catch (error) {
+      console.error('[HUBSPOT-MCP] Failed to fetch deal stages:', (error as Error).message);
+      // Continue without cached stages - users can still create deals
+    }
+  }
+
+  /**
    * Get property groups for a specific object type from cache
    */
   private getPropertyGroups(objectType: string): string[] {
@@ -188,6 +228,22 @@ export class HubspotBCPServer {
     } else {
       console.error('[HUBSPOT-MCP] No cached blogs found, using string schema for contentGroupId');
       return z.string().describe('Blog ID to publish to (use list operation to see available blogs)');
+    }
+  }
+
+  /**
+   * Create dynamic dealstage schema based on cached deal stages
+   */
+  private createDealStageSchema() {
+    const stageIds = Array.from(this.dealStagesCache.keys());
+    
+    // If we have cached deal stages, create an enum with IDs, otherwise allow any string
+    if (stageIds.length > 0) {
+      console.error(`[HUBSPOT-MCP] Creating dynamic dealstage enum with ${stageIds.length} stage options`);
+      return z.enum(stageIds as [string, ...string[]]).describe(`Deal stage ID within the pipeline. Available stages: ${Array.from(this.dealStagesCache.entries()).map(([id, name]) => `${id} (${name})`).join(', ')}`);
+    } else {
+      console.error('[HUBSPOT-MCP] No cached deal stages found, using string schema for dealstage');
+      return z.string().describe('Deal stage ID within the pipeline');
     }
   }
 
@@ -243,7 +299,7 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotCompany',
       {
-        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'search', 'recent']).describe('Operation to perform'),
         
         // Parameters for create operation
         name: z.string().min(1).optional().describe('Company name (required for create operation)'),
@@ -251,8 +307,8 @@ export class HubspotBCPServer {
         industry: z.string().optional().describe('Company industry'),
         description: z.string().optional().describe('Company description'),
         
-        // Parameters for get/update/delete operations
-        id: z.string().optional().describe('Company ID (required for get, update, and delete operations)'),
+        // Parameters for get/update operations
+        id: z.string().optional().describe('Company ID (required for get and update operations)'),
         
         // Parameters for search operation
         searchType: z.enum(['name', 'domain']).optional().describe('Type of search to perform (required for search operation)'),
@@ -275,9 +331,8 @@ export class HubspotBCPServer {
               break;
             case 'get':
             case 'update':
-            case 'delete':
               if (!params.id) {
-                throw new Error('Company ID is required for get, update, and delete operations');
+                throw new Error('Company ID is required for get and update operations');
               }
               break;
             case 'search':
@@ -323,10 +378,6 @@ export class HubspotBCPServer {
               result = await this.apiClient.updateCompany(params.id as string, updateProps);
               break;
               
-            case 'delete':
-              await this.apiClient.deleteCompany(params.id as string);
-              result = { message: `Company ${params.id} deleted successfully` };
-              break;
               
             case 'search':
               if (params.searchType === 'domain') {
@@ -373,7 +424,7 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotContact',
       {
-        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'search', 'recent']).describe('Operation to perform'),
         
         // Parameters for create operation
         email: z.string().email().optional().describe('Contact email address (required for create operation)'),
@@ -382,8 +433,8 @@ export class HubspotBCPServer {
         phone: z.string().optional().describe('Contact phone number'),
         company: z.string().optional().describe('Contact company name'),
         
-        // Parameters for get/update/delete operations
-        id: z.string().optional().describe('Contact ID (required for get, update, and delete operations)'),
+        // Parameters for get/update operations
+        id: z.string().optional().describe('Contact ID (required for get and update operations)'),
         
         // Parameters for search operation
         searchType: z.enum(['email', 'name']).optional().describe('Type of search to perform (required for search operation)'),
@@ -406,9 +457,8 @@ export class HubspotBCPServer {
               break;
             case 'get':
             case 'update':
-            case 'delete':
               if (!params.id) {
-                throw new Error('Contact ID is required for get, update, and delete operations');
+                throw new Error('Contact ID is required for get and update operations');
               }
               break;
             case 'search':
@@ -456,10 +506,6 @@ export class HubspotBCPServer {
               result = await this.apiClient.updateContact(params.id as string, updateProps);
               break;
               
-            case 'delete':
-              await this.apiClient.deleteContact(params.id as string);
-              result = { message: `Contact ${params.id} deleted successfully` };
-              break;
               
             case 'search':
               if (params.searchType === 'email') {
@@ -504,7 +550,7 @@ export class HubspotBCPServer {
   private registerNotesTools(): void {
     // Define a combined schema for all note operations
     // This requires careful merging of individual tool schemas
-    const noteOperationEnum = z.enum(['create', 'get', 'update', 'delete', 'list', 'recent']);
+    const noteOperationEnum = z.enum(['create', 'get', 'update', 'list', 'recent']);
     
     // Consolidate all properties from individual note tools' inputSchemas
     // This is a simplified approach; a more robust solution might involve dynamic schema generation
@@ -517,8 +563,8 @@ export class HubspotBCPServer {
       ownerId: z.string().optional().describe('HubSpot owner ID for the note'),
       // metadata is used by create and update
       metadata: z.record(z.string().or(z.number()).or(z.boolean())).optional().describe('Custom properties for the note'),
-      // id is used by get, update, delete
-      id: z.string().optional().describe('Note ID (required for get, update, delete)'),
+      // id is used by get, update
+      id: z.string().optional().describe('Note ID (required for get, update)'),
       // Params for listNotes
       startTimestamp: z.string().optional().describe('Start timestamp for list filter (ISO 8601)'),
       endTimestamp: z.string().optional().describe('End timestamp for list filter (ISO 8601)'),
@@ -545,9 +591,6 @@ export class HubspotBCPServer {
               break;
             case 'update':
               selectedTool = noteTools.find(t => t.name === 'updateNote');
-              break;
-            case 'delete':
-              selectedTool = noteTools.find(t => t.name === 'deleteNote');
               break;
             case 'list':
               selectedTool = noteTools.find(t => t.name === 'listNotes');
@@ -595,7 +638,7 @@ export class HubspotBCPServer {
    */
   private registerAssociationsTools(): void {
     // Define a combined schema for all association operations
-    const associationOperationEnum = z.enum(['create', 'createDefault', 'delete', 'list', 'batchCreate', 'batchCreateDefault', 'batchDelete', 'batchRead', 'deleteLabels', 'getAssociationTypes', 'getAssociationTypeReference']);
+    const associationOperationEnum = z.enum(['create', 'createDefault', 'list', 'batchCreate', 'batchCreateDefault', 'batchRead', 'getAssociationTypes', 'getAssociationTypeReference']);
     
     // Consolidate all properties from individual association tools' inputSchemas
     const allAssociationParams = {
@@ -607,7 +650,7 @@ export class HubspotBCPServer {
       fromObjectId: z.string().optional().describe('The ID of the first object (for single operations)'),
       toObjectId: z.string().optional().describe('The ID of the second object (for single operations)'),
       // Parameters for batch operations
-      associations: z.array(z.any()).optional().describe('The associations to create/delete (for batch operations)'),
+      associations: z.array(z.any()).optional().describe('The associations to create (for batch operations)'),
       inputs: z.array(z.any()).optional().describe('The objects to read associations for (for batchRead)'),
       // Parameters for list operation
       objectType: z.string().optional().describe('The type of the object (for list operation)'),
@@ -617,7 +660,7 @@ export class HubspotBCPServer {
       // Parameters for association types
       associationCategory: z.string().optional().describe('The category of the association'),
       associationTypeId: z.number().optional().describe('The ID of the association type'),
-      types: z.array(z.any()).optional().describe('The types of associations to create/delete'),
+      types: z.array(z.any()).optional().describe('The types of associations to create'),
     };
 
     this.server.tool(
@@ -635,9 +678,6 @@ export class HubspotBCPServer {
             case 'createDefault':
               selectedTool = associationTools.find(t => t.name === 'createDefaultAssociation');
               break;
-            case 'delete':
-              selectedTool = associationTools.find(t => t.name === 'deleteAssociation');
-              break;
             case 'list':
               selectedTool = associationTools.find(t => t.name === 'listAssociations');
               break;
@@ -647,14 +687,8 @@ export class HubspotBCPServer {
             case 'batchCreateDefault':
               selectedTool = associationTools.find(t => t.name === 'batchCreateDefaultAssociations');
               break;
-            case 'batchDelete':
-              selectedTool = associationTools.find(t => t.name === 'batchDeleteAssociations');
-              break;
             case 'batchRead':
               selectedTool = associationTools.find(t => t.name === 'batchReadAssociations');
-              break;
-            case 'deleteLabels':
-              selectedTool = associationTools.find(t => t.name === 'deleteAssociationLabels');
               break;
             case 'getAssociationTypes':
               selectedTool = associationTools.find(t => t.name === 'getAssociationTypes');
@@ -725,7 +759,7 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotBlogPost',
       {
-        operation: z.enum(['create', 'get', 'update', 'delete', 'recent']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'recent']).describe('Operation to perform'),
         
         // Parameters for create operation
         name: z.string().optional().describe('Blog post title (required for create operation)'),
@@ -738,8 +772,8 @@ export class HubspotBCPServer {
         useFeaturedImage: z.boolean().optional().describe('Whether to include a featured image'),
         state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED']).optional().describe('Publish state of the post'),
         
-        // Parameters for get/update/delete operations
-        id: z.string().optional().describe('Blog post ID (required for get, update, and delete operations)'),
+        // Parameters for get/update operations
+        id: z.string().optional().describe('Blog post ID (required for get and update operations)'),
         
         // Parameters for update operation
         updateDraftOnly: z.boolean().optional().describe('Whether to update only the draft version (true) or publish changes immediately (false)'),
@@ -764,9 +798,8 @@ export class HubspotBCPServer {
               break;
             case 'get':
             case 'update':
-            case 'delete':
               if (!params.id) {
-                throw new Error('Blog post ID is required for get, update, and delete operations');
+                throw new Error('Blog post ID is required for get and update operations');
               }
               break;
           }
@@ -816,10 +849,6 @@ export class HubspotBCPServer {
               }
               break;
               
-            case 'delete':
-              await this.apiClient.deleteBlogPost(params.id as string);
-              result = { message: `Blog post ${params.id} deleted successfully` };
-              break;
               
             case 'recent':
               result = await this.apiClient.getRecentBlogPosts(params.limit);
@@ -852,19 +881,19 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotDeal',
       {
-        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent', 'batchCreate', 'batchUpdate']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'search', 'recent']).describe('Operation to perform'),
         
         // Parameters for create operation
         dealname: z.string().optional().describe('Deal name (required for create operation)'),
         pipeline: z.string().optional().describe('Pipeline ID the deal belongs to'),
-        dealstage: z.string().optional().describe('Deal stage ID within the pipeline'),
+        dealstage: this.createDealStageSchema().optional(),
         amount: z.string().optional().describe('Deal amount in currency'),
         closedate: z.string().optional().describe('Expected close date (ISO 8601 format: YYYY-MM-DD)'),
         description: z.string().optional().describe('Deal description'),
         hubspot_owner_id: z.string().optional().describe('HubSpot owner ID for the deal'),
         
-        // Parameters for get/update/delete operations
-        id: z.string().optional().describe('Deal ID (required for get, update, and delete operations)'),
+        // Parameters for get/update operations
+        id: z.string().optional().describe('Deal ID (required for get and update operations)'),
         
         // Parameters for search operation
         searchType: z.enum(['name', 'modifiedDate', 'custom']).optional().describe('Type of search to perform'),
@@ -887,27 +916,6 @@ export class HubspotBCPServer {
         }).optional().describe('Custom search request (for advanced searches)'),
         
         // Parameters for batch operations
-        deals: z.array(z.object({
-          dealname: z.string(),
-          pipeline: z.string().optional(),
-          dealstage: z.string().optional(),
-          amount: z.string().optional(),
-          closedate: z.string().optional(),
-          description: z.string().optional(),
-          hubspot_owner_id: z.string().optional()
-        })).optional().describe('Array of deals to create (for batchCreate)'),
-        updates: z.array(z.object({
-          id: z.string(),
-          properties: z.object({
-            dealname: z.string().optional(),
-            pipeline: z.string().optional(),
-            dealstage: z.string().optional(),
-            amount: z.string().optional(),
-            closedate: z.string().optional(),
-            description: z.string().optional(),
-            hubspot_owner_id: z.string().optional()
-          })
-        })).optional().describe('Array of deal updates (for batchUpdate)'),
         
         // Common parameters
         limit: z.number().int().min(1).max(100).default(10).describe('Maximum number of results (for search and recent operations)'),
@@ -923,12 +931,14 @@ export class HubspotBCPServer {
               if (!params.dealname) {
                 throw new Error('Deal name is required for create operation');
               }
+              if (!params.dealstage) {
+                throw new Error('Deal stage is required for create operation');
+              }
               break;
             case 'get':
             case 'update':
-            case 'delete':
               if (!params.id) {
-                throw new Error('Deal ID is required for get, update, and delete operations');
+                throw new Error('Deal ID is required for get and update operations');
               }
               break;
             case 'search':
@@ -940,16 +950,6 @@ export class HubspotBCPServer {
               }
               if (params.searchType === 'custom' && !params.customSearch) {
                 throw new Error('customSearch object is required for custom search');
-              }
-              break;
-            case 'batchCreate':
-              if (!params.deals || params.deals.length === 0) {
-                throw new Error('Deals array is required for batchCreate operation');
-              }
-              break;
-            case 'batchUpdate':
-              if (!params.updates || params.updates.length === 0) {
-                throw new Error('Updates array is required for batchUpdate operation');
               }
               break;
           }
@@ -993,10 +993,6 @@ export class HubspotBCPServer {
               result = await this.apiClient.updateDeal(params.id as string, updateProps);
               break;
               
-            case 'delete':
-              await this.apiClient.deleteDeal(params.id as string);
-              result = { message: `Deal ${params.id} deleted successfully` };
-              break;
               
             case 'search':
               if (params.searchType === 'name') {
@@ -1016,13 +1012,6 @@ export class HubspotBCPServer {
               result = await this.apiClient.getRecentDeals(params.limit);
               break;
               
-            case 'batchCreate':
-              result = await this.apiClient.batchCreateDeals(params.deals as any[]);
-              break;
-              
-            case 'batchUpdate':
-              result = await this.apiClient.batchUpdateDeals(params.updates as any[]);
-              break;
               
             default:
               throw new Error(`Unknown operation: ${operation}`);
@@ -1051,7 +1040,7 @@ export class HubspotBCPServer {
     this.server.tool(
       'hubspotQuote',
       {
-        operation: z.enum(['create', 'get', 'update', 'delete', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem']).describe('Operation to perform'),
+        operation: z.enum(['create', 'get', 'update', 'search', 'recent', 'addLineItem', 'listLineItems', 'updateLineItem', 'removeLineItem']).describe('Operation to perform'),
         
         // Parameters for create operation
         title: z.string().optional().describe('Quote title (required for create operation)'),
@@ -1072,8 +1061,8 @@ export class HubspotBCPServer {
         senderPhone: z.string().optional().describe('Sender phone number'),
         senderJobTitle: z.string().optional().describe('Sender job title'),
         
-        // Parameters for get/update/delete operations
-        id: z.string().optional().describe('Quote ID (required for get, update, and delete operations)'),
+        // Parameters for get/update operations
+        id: z.string().optional().describe('Quote ID (required for get and update operations)'),
         
         // Parameters for search operation
         searchType: z.enum(['title', 'status']).optional().describe('Type of search to perform'),
@@ -1121,12 +1110,6 @@ export class HubspotBCPServer {
               toolName = 'update';
               if (!params.id) {
                 throw new Error('Quote ID is required for update operation');
-              }
-              break;
-            case 'delete':
-              toolName = 'delete';
-              if (!params.id) {
-                throw new Error('Quote ID is required for delete operation');
               }
               break;
             case 'search':
@@ -1276,7 +1259,7 @@ export class HubspotBCPServer {
    */
   private registerPropertiesTools(): void {
     // Define a combined schema for all property operations
-    const propertyOperationEnum = z.enum(['list', 'get', 'create', 'update', 'delete', 'listGroups', 'getGroup', 'createGroup', 'updateGroup', 'deleteGroup']);
+    const propertyOperationEnum = z.enum(['list', 'get', 'create', 'update', 'listGroups', 'getGroup', 'createGroup', 'updateGroup']);
     
     // Consolidate all properties from individual property tools' inputSchemas
     const allPropertyParams = {
@@ -1284,7 +1267,7 @@ export class HubspotBCPServer {
       // Common parameters
       objectType: z.string().optional().describe('The HubSpot object type (contacts, companies, deals, tickets, etc.)'),
       // Parameters for property operations
-      propertyName: z.string().optional().describe('The name of the property (required for get, update, delete operations)'),
+      propertyName: z.string().optional().describe('The name of the property (required for get and update operations)'),
       name: z.string().optional().describe('The internal name of the property (required for create operation)'),
       label: z.string().optional().describe('The display label for the property'),
       description: z.string().optional().describe('Description of the property'),
@@ -1328,9 +1311,6 @@ export class HubspotBCPServer {
             case 'update':
               selectedTool = propertiesTools.find(t => t.name === 'updateProperty');
               break;
-            case 'delete':
-              selectedTool = propertiesTools.find(t => t.name === 'deleteProperty');
-              break;
             case 'listGroups':
               selectedTool = propertiesTools.find(t => t.name === 'listPropertyGroups');
               break;
@@ -1342,9 +1322,6 @@ export class HubspotBCPServer {
               break;
             case 'updateGroup':
               selectedTool = propertiesTools.find(t => t.name === 'updatePropertyGroup');
-              break;
-            case 'deleteGroup':
-              selectedTool = propertiesTools.find(t => t.name === 'deletePropertyGroup');
               break;
             default:
               throw new Error(`Unknown property operation: ${operation}`);
@@ -1386,7 +1363,7 @@ export class HubspotBCPServer {
    */
   private registerEmailsTools(): void {
     // Define a combined schema for all email operations
-    const emailOperationEnum = z.enum(['create', 'get', 'update', 'delete', 'list', 'recent']);
+    const emailOperationEnum = z.enum(['create', 'get', 'update', 'list', 'recent']);
     
     // Consolidate all properties from individual email tools' inputSchemas
     const allEmailParams = {
@@ -1403,8 +1380,8 @@ export class HubspotBCPServer {
       previewText: z.string().optional().describe('Preview text for email clients'),
       folderId: z.string().optional().describe('Folder ID for organization'),
       metadata: z.record(z.any()).optional().describe('Additional custom properties'),
-      // Parameters for get/update/delete operations
-      id: z.string().optional().describe('Email ID (required for get, update, delete)'),
+      // Parameters for get/update operations
+      id: z.string().optional().describe('Email ID (required for get, update)'),
       // Parameters for update operation
       state: z.enum(['DRAFT', 'PUBLISHED', 'SCHEDULED', 'ARCHIVED']).optional().describe('Email state'),
       // Parameters for list operation
@@ -1435,9 +1412,6 @@ export class HubspotBCPServer {
               break;
             case 'update':
               selectedTool = emailTools.find(t => t.name === 'update');
-              break;
-            case 'delete':
-              selectedTool = emailTools.find(t => t.name === 'delete');
               break;
             case 'list':
               selectedTool = emailTools.find(t => t.name === 'list');
@@ -1505,16 +1479,16 @@ export class HubspotBCPServer {
       // Use stderr for logging to avoid interfering with the JSON-RPC protocol
       console.error('HubSpot DXT Extension started successfully');
       console.error('Available tools:');
-      console.error('- hubspotCompany: Company operations (create, get, update, delete, search, recent)');
-      console.error('- hubspotContact: Contact operations (create, get, update, delete, search, recent)');
-      console.error('- hubspotDeal: Deal operations (create, get, update, delete, search, recent, batch)');
-      console.error('- hubspotBlogPost: Blog post operations (create, get, update, delete, recent)');
-      console.error('- hubspotNote: Note operations (create, get, update, delete, list, recent, associations)');
-      console.error('- hubspotAssociation: Association operations (create, read, delete relationships, batch)');
-      console.error('- hubspotQuote: Quote operations (create, get, update, delete, search, recent, line items)');
+      console.error('- hubspotCompany: Company operations (create, get, update, search, recent)');
+      console.error('- hubspotContact: Contact operations (create, get, update, search, recent)');
+      console.error('- hubspotDeal: Deal operations (create, get, update, search, recent, batch)');
+      console.error('- hubspotBlogPost: Blog post operations (create, get, update, recent)');
+      console.error('- hubspotNote: Note operations (create, get, update, list, recent, associations)');
+      console.error('- hubspotAssociation: Association operations (create, read relationships, batch)');
+      console.error('- hubspotQuote: Quote operations (create, get, update, search, recent, line items)');
       console.error('- hubspotProduct: Product operations (get, list, search)');
-      console.error('- hubspotProperty: Property operations (list, get, create, update, delete, property groups)');
-      console.error('- hubspotEmail: Email operations (create, get, update, delete, list, recent)');
+      console.error('- hubspotProperty: Property operations (list, get, create, update, property groups)');
+      console.error('- hubspotEmail: Email operations (create, get, update, list, recent)');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Failed to start DXT server:', errorMessage);
@@ -1527,6 +1501,13 @@ export class HubspotBCPServer {
    */
   getApiClient(): HubspotApiClient {
     return this.apiClient;
+  }
+  
+  /**
+   * Get the MCP server instance
+   */
+  getServer(): McpServer {
+    return this.server;
   }
 }
 

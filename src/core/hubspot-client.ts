@@ -8,6 +8,7 @@
 
 import { Client } from '@hubspot/api-client';
 import { ApiError, ApiErrorType } from './types.js';
+import { AssociationEnrichmentEngine, AssociationType, AssociationOptions, EnhancedContact, BaseContact } from './association-enrichment-engine.js';
 
 /**
  * HubSpot API client class
@@ -15,6 +16,7 @@ import { ApiError, ApiErrorType } from './types.js';
 export class HubspotApiClient {
   private client: Client;
   private currentOperation: string = '';
+  private associationEngine: AssociationEnrichmentEngine;
   
   /**
    * Create a new HubSpot API client
@@ -27,6 +29,9 @@ export class HubspotApiClient {
     this.client = new Client({
       accessToken: apiKey || 'placeholder'
     });
+
+    // Initialize association enrichment engine
+    this.associationEngine = new AssociationEnrichmentEngine(this.client);
   }
 
   /**
@@ -40,6 +45,20 @@ export class HubspotApiClient {
       throw new Error('Access token not available');
     }
     return token;
+  }
+
+  /**
+   * Test connection to HubSpot API
+   * 
+   * @returns Promise that resolves if connection is successful
+   */
+  async testConnection(): Promise<void> {
+    try {
+      // Use a lightweight API call to test connectivity
+      await this.client.crm.companies.basicApi.getPage(1, undefined, undefined, undefined, undefined, false);
+    } catch (error) {
+      this.handleApiError(error, 'testConnection');
+    }
   }
 
   /**
@@ -169,18 +188,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a company
-   * 
-   * @param id - Company ID
-   */
-  async deleteCompany(id: string): Promise<void> {
-    try {
-      await this.client.crm.companies.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteCompany');
-    }
-  }
 
   /**
    * Search companies by domain
@@ -258,14 +265,19 @@ export class HubspotApiClient {
    */
   async getRecentCompanies(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.companies.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.companies.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['name', 'domain', 'website', 'industry', 'description'],
-        false
-      );
+        properties: ['name', 'domain', 'website']
+      });
       
       return this.formatResponse(response.results.map(company => ({
         id: company.id,
@@ -307,21 +319,31 @@ export class HubspotApiClient {
   }
 
   /**
-   * Get contact by ID
-   * 
+   * Get contact by ID with optional association enrichment
+   *
    * @param id - Contact ID
-   * @returns Contact data
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Contact data with optional association data
    */
-  async getContact(id: string): Promise<any> {
+  async getContact(id: string, associationOptions?: AssociationOptions): Promise<EnhancedContact> {
     try {
       const response = await this.client.crm.contacts.basicApi.getById(id);
-      
-      return this.formatResponse({
+
+      const contact: BaseContact = {
         id: response.id,
         properties: response.properties,
-        createdAt: response.createdAt,
-        updatedAt: response.updatedAt
-      });
+        createdAt: typeof response.createdAt === 'string' ? response.createdAt : new Date().toISOString(),
+        updatedAt: typeof response.updatedAt === 'string' ? response.updatedAt : new Date().toISOString()
+      };
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use association enrichment engine for a single contact
+        const enrichedResults = await this.associationEngine.enrichContacts([contact], associationOptions);
+        return this.formatResponse(enrichedResults[0]);
+      }
+
+      return this.formatResponse(contact);
     } catch (error) {
       return this.handleApiError(error, 'getContact');
     }
@@ -351,27 +373,22 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a contact
-   * 
-   * @param id - Contact ID
-   */
-  async deleteContact(id: string): Promise<void> {
-    try {
-      await this.client.crm.contacts.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteContact');
-    }
-  }
 
   /**
-   * Search contacts by email
-   * 
+   * Search contacts by email with optional association enrichment
+   *
    * @param email - Email to search for
    * @param limit - Maximum number of results
-   * @returns Matching contacts
+   * @param includeAssociations - Whether to fetch associations (legacy parameter for backward compatibility)
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Matching contacts with optional association data
    */
-  async searchContactsByEmail(email: string, limit: number = 10): Promise<any[]> {
+  async searchContactsByEmail(
+    email: string,
+    limit: number = 10,
+    includeAssociations: boolean = false,
+    associationOptions?: AssociationOptions
+  ): Promise<EnhancedContact[]> {
     try {
       const response = await this.client.crm.contacts.searchApi.doSearch({
         filterGroups: [{
@@ -384,99 +401,323 @@ export class HubspotApiClient {
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname', 'phone', 'company']
+        properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
-      
-      return this.formatResponse(response.results.map(contact => ({
+
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
-      })));
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
+      }));
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      } else if (includeAssociations && results.length > 0) {
+        // Legacy company enrichment for backward compatibility
+        const legacyEnriched = await this.enrichContactsWithCompanies(results);
+        return this.formatResponse(legacyEnriched);
+      }
+
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByEmail');
     }
   }
 
   /**
-   * Search contacts by name
-   * 
+   * Search contacts by name with optional association enrichment
+   *
    * @param name - Name to search for
    * @param limit - Maximum number of results
-   * @returns Matching contacts
+   * @param includeAssociations - Whether to fetch associations (legacy parameter for backward compatibility)
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Matching contacts with optional association data
    */
-  async searchContactsByName(name: string, limit: number = 10): Promise<any[]> {
+  async searchContactsByName(
+    name: string,
+    limit: number = 10,
+    includeAssociations: boolean = false,
+    associationOptions?: AssociationOptions
+  ): Promise<EnhancedContact[]> {
     try {
+      // Trim and normalize the search input
+      const searchTerm = name.trim().toLowerCase();
+      
       // Split name into first and last name parts
-      const nameParts = name.split(' ');
+      const nameParts = searchTerm.split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
       
-      // Build filter groups for first name and last name
-      const filterGroups = [];
+      // Strategy 1: Try exact match first (if full name provided)
+      if (firstName && lastName) {
+        // Use a single filter group with multiple filters (AND logic)
+        const exactMatchResponse = await this.client.crm.contacts.searchApi.doSearch({
+          filterGroups: [{
+            filters: [
+              {
+                propertyName: 'firstname',
+                operator: 'EQ',
+                value: firstName
+              },
+              {
+                propertyName: 'lastname',
+                operator: 'EQ',
+                value: lastName
+              }
+            ]
+          }],
+          sorts: [],
+          after: 0,
+          limit,
+          properties: ['email', 'firstname', 'lastname', 'company', 'phone']
+        });
+        
+        // If we found exact matches, return them
+        if (exactMatchResponse.results.length > 0) {
+          let results: BaseContact[] = exactMatchResponse.results.map(contact => ({
+            id: contact.id,
+            properties: contact.properties,
+            createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+            updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
+          }));
+
+          // Handle association enrichment
+          if (associationOptions && associationOptions.associationTypes.length > 0) {
+            // Use new association enrichment engine
+            const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+            return this.formatResponse(enrichedResults);
+          } else if (includeAssociations) {
+            // Legacy company enrichment for backward compatibility
+            const legacyEnriched = await this.enrichContactsWithCompanies(results);
+            return this.formatResponse(legacyEnriched);
+          }
+
+          return this.formatResponse(results);
+        }
+      }
+      
+      // Strategy 2: Use token-based search with AND logic for partial matches
+      const filters = [];
       
       if (firstName) {
-        filterGroups.push({
-          filters: [{
-            propertyName: 'firstname',
-            operator: 'CONTAINS_TOKEN' as any,
-            value: firstName
-          }]
+        filters.push({
+          propertyName: 'firstname',
+          operator: 'CONTAINS_TOKEN' as any,
+          value: firstName
         });
       }
       
       if (lastName) {
-        filterGroups.push({
-          filters: [{
-            propertyName: 'lastname',
-            operator: 'CONTAINS_TOKEN' as any,
-            value: lastName
-          }]
+        filters.push({
+          propertyName: 'lastname',
+          operator: 'CONTAINS_TOKEN' as any,
+          value: lastName
         });
       }
       
+      // If only one name part, search both first and last name fields
+      if (nameParts.length === 1) {
+        // Search in both firstname and lastname using OR logic for single name
+        const response = await this.client.crm.contacts.searchApi.doSearch({
+          filterGroups: [
+            {
+              filters: [{
+                propertyName: 'firstname',
+                operator: 'CONTAINS_TOKEN' as any,
+                value: firstName
+              }]
+            },
+            {
+              filters: [{
+                propertyName: 'lastname',
+                operator: 'CONTAINS_TOKEN' as any,
+                value: firstName
+              }]
+            }
+          ],
+          sorts: [],
+          after: 0,
+          limit: limit * 2, // Get more results to filter later
+          properties: ['email', 'firstname', 'lastname', 'company', 'phone']
+        });
+        
+        // Client-side relevance scoring for single name searches
+        const scoredResults = response.results.map(contact => {
+          const contactFirstName = (contact.properties.firstname || '').toLowerCase();
+          const contactLastName = (contact.properties.lastname || '').toLowerCase();
+          
+          // Higher score for exact matches
+          let score = 0;
+          if (contactFirstName === firstName) score += 10;
+          else if (contactFirstName.startsWith(firstName)) score += 5;
+          else if (contactFirstName.includes(firstName)) score += 2;
+          
+          if (contactLastName === firstName) score += 10;
+          else if (contactLastName.startsWith(firstName)) score += 5;
+          else if (contactLastName.includes(firstName)) score += 2;
+          
+          return { contact, score };
+        });
+        
+        // Sort by score and return top results
+        let sortedResults: BaseContact[] = scoredResults
+          .sort((a, b) => b.score - a.score)
+          .slice(0, limit)
+          .map(item => ({
+            id: item.contact.id,
+            properties: item.contact.properties,
+            createdAt: typeof item.contact.createdAt === 'string' ? item.contact.createdAt : new Date().toISOString(),
+            updatedAt: typeof item.contact.updatedAt === 'string' ? item.contact.updatedAt : new Date().toISOString()
+          }));
+
+        // Handle association enrichment
+        if (associationOptions && associationOptions.associationTypes.length > 0) {
+          // Use new association enrichment engine
+          const enrichedResults = await this.associationEngine.enrichContacts(sortedResults, associationOptions);
+          return this.formatResponse(enrichedResults);
+        } else if (includeAssociations && sortedResults.length > 0) {
+          // Legacy company enrichment for backward compatibility
+          const legacyEnriched = await this.enrichContactsWithCompanies(sortedResults);
+          return this.formatResponse(legacyEnriched);
+        }
+
+        return this.formatResponse(sortedResults);
+      }
+      
+      // For multiple name parts, use AND logic (single filter group)
       const response = await this.client.crm.contacts.searchApi.doSearch({
-        filterGroups,
+        filterGroups: [{
+          filters
+        }],
         sorts: [],
         after: 0,
         limit,
-        properties: ['email', 'firstname', 'lastname', 'phone', 'company']
+        properties: ['email', 'firstname', 'lastname', 'company', 'phone']
       });
       
-      return this.formatResponse(response.results.map(contact => ({
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
-      })));
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
+      }));
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      } else if (includeAssociations && results.length > 0) {
+        // Legacy company enrichment for backward compatibility
+        const legacyEnriched = await this.enrichContactsWithCompanies(results);
+        return this.formatResponse(legacyEnriched);
+      }
+
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'searchContactsByName');
     }
   }
-
+  
   /**
-   * Get recent contacts
+   * Enrich contacts with their associated company data
    * 
-   * @param limit - Maximum number of results
-   * @returns Recent contacts
+   * @param contacts - Array of contacts to enrich
+   * @returns Contacts with company associations
    */
-  async getRecentContacts(limit: number = 10): Promise<any[]> {
+  private async enrichContactsWithCompanies(contacts: any[]): Promise<any[]> {
     try {
-      const response = await this.client.crm.contacts.basicApi.getPage(
-        limit,
-        undefined,
-        undefined,
-        undefined,
-        ['email', 'firstname', 'lastname', 'phone', 'company'],
-        false
+      // Fetch each contact with associations
+      const enrichedContacts = await Promise.all(
+        contacts.map(async (contact) => {
+          try {
+            // Get the contact with associations
+            const contactWithAssoc = await this.client.crm.contacts.basicApi.getById(
+              contact.id,
+              undefined,  // properties
+              undefined,  // propertiesWithHistory
+              ['companies'],  // associations
+              false  // archived
+            );
+            
+            // If there are associated companies, get the primary one
+            if (contactWithAssoc.associations?.companies?.results && 
+                contactWithAssoc.associations.companies.results.length > 0) {
+              const primaryCompanyId = contactWithAssoc.associations.companies.results[0].id;
+              
+              try {
+                // Fetch the company details
+                const company = await this.client.crm.companies.basicApi.getById(primaryCompanyId);
+                
+                // Add company info to the contact properties
+                contact.properties.associatedCompanyId = primaryCompanyId;
+                contact.properties.associatedCompanyName = company.properties.name || '';
+                contact.associations = contactWithAssoc.associations;
+              } catch (companyError) {
+                // If we can't fetch the company, at least include the ID
+                contact.properties.associatedCompanyId = primaryCompanyId;
+                contact.associations = contactWithAssoc.associations;
+              }
+            }
+          } catch (assocError) {
+            // If we can't fetch associations, return the contact as-is
+            console.error(`Failed to fetch associations for contact ${contact.id}:`, assocError);
+          }
+          
+          return contact;
+        })
       );
       
-      return this.formatResponse(response.results.map(contact => ({
+      return enrichedContacts;
+    } catch (error) {
+      // If enrichment fails, return the original contacts
+      console.error('Failed to enrich contacts with companies:', error);
+      return contacts;
+    }
+  }
+
+  /**
+   * Get recent contacts with optional association enrichment
+   *
+   * @param limit - Maximum number of results
+   * @param associationOptions - Optional association enrichment configuration
+   * @returns Recent contacts with optional association data
+   */
+  async getRecentContacts(limit: number = 10, associationOptions?: AssociationOptions): Promise<EnhancedContact[]> {
+    try {
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.contacts.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
+        limit,
+        properties: ['email', 'firstname', 'lastname']
+      });
+
+      let results: BaseContact[] = response.results.map(contact => ({
         id: contact.id,
         properties: contact.properties,
-        createdAt: contact.createdAt,
-        updatedAt: contact.updatedAt
-      })));
+        createdAt: typeof contact.createdAt === 'string' ? contact.createdAt : new Date().toISOString(),
+        updatedAt: typeof contact.updatedAt === 'string' ? contact.updatedAt : new Date().toISOString()
+      }));
+
+      // Handle association enrichment
+      if (associationOptions && associationOptions.associationTypes.length > 0) {
+        // Use new association enrichment engine
+        const enrichedResults = await this.associationEngine.enrichContacts(results, associationOptions);
+        return this.formatResponse(enrichedResults);
+      }
+
+      return this.formatResponse(results);
     } catch (error) {
       return this.handleApiError(error, 'getRecentContacts');
     }
@@ -638,35 +879,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a blog post
-   * 
-   * @param id - Blog post ID
-   */
-  async deleteBlogPost(id: string): Promise<void> {
-    try {
-      // Use fetch directly to delete a blog post
-      const accessToken = this.getAccessToken();
-      
-      const url = `https://api.hubapi.com/cms/v3/blogs/posts/${id}`;
-      
-      const headers = {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      };
-      
-      const response = await fetch(url, {
-        method: 'DELETE',
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to delete blog post: ${response.statusText}`);
-      }
-    } catch (error) {
-      this.handleApiError(error, 'deleteBlogPost');
-    }
-  }
 
 
   /**
@@ -734,6 +946,564 @@ export class HubspotApiClient {
       return this.formatResponse(data.objects || []);
     } catch (error) {
       return this.handleApiError(error, 'getBlogs');
+    }
+  }
+
+  //=============================================================================
+  // NOTES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a note
+   * 
+   * @param properties - Note properties
+   * @returns Created note data
+   */
+  async createNote(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.create('notes', {
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createNote');
+    }
+  }
+
+  /**
+   * Get note by ID
+   * 
+   * @param id - Note ID
+   * @returns Note data
+   */
+  async getNote(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.getById('notes', id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getNote');
+    }
+  }
+
+  /**
+   * Update note properties
+   * 
+   * @param id - Note ID
+   * @param properties - Properties to update
+   * @returns Updated note data
+   */
+  async updateNote(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.update('notes', id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateNote');
+    }
+  }
+
+
+  /**
+   * Search notes
+   * 
+   * @param searchRequest - Search request
+   * @returns Matching notes
+   */
+  async searchNotes(searchRequest: any): Promise<any[]> {
+    try {
+      const response = await this.client.crm.objects.searchApi.doSearch('notes', searchRequest);
+      
+      return this.formatResponse(response.results.map(note => ({
+        id: note.id,
+        properties: note.properties,
+        createdAt: note.createdAt,
+        updatedAt: note.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchNotes');
+    }
+  }
+
+  //=============================================================================
+  // PRODUCTS API METHODS
+  //=============================================================================
+
+  /**
+   * Create a product
+   * 
+   * @param properties - Product properties
+   * @returns Created product data
+   */
+  async createProduct(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.create({
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createProduct');
+    }
+  }
+
+  /**
+   * Get product by ID
+   * 
+   * @param id - Product ID
+   * @returns Product data
+   */
+  async getProduct(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.getById(id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getProduct');
+    }
+  }
+
+  /**
+   * Update product properties
+   * 
+   * @param id - Product ID
+   * @param properties - Properties to update
+   * @returns Updated product data
+   */
+  async updateProduct(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.products.basicApi.update(id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateProduct');
+    }
+  }
+
+
+  /**
+   * Search products
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching products
+   */
+  async searchProducts(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.products.searchApi.doSearch({
+        filterGroups: [{
+          filters: [{
+            propertyName: 'name',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['name', 'price', 'description']
+      });
+      
+      return this.formatResponse(response.results.map(product => ({
+        id: product.id,
+        properties: product.properties,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchProducts');
+    }
+  }
+
+  /**
+   * Get recent products
+   * 
+   * @param limit - Maximum number of results
+   * @returns Recent products
+   */
+  async getRecentProducts(limit: number = 10): Promise<any[]> {
+    try {
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.products.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
+        limit,
+        properties: ['name', 'price', 'description']
+      });
+      
+      return this.formatResponse(response.results.map(product => ({
+        id: product.id,
+        properties: product.properties,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'getRecentProducts');
+    }
+  }
+
+  //=============================================================================
+  // EMAIL ACTIVITIES API METHODS
+  //=============================================================================
+
+  /**
+   * Create an email activity/engagement
+   * 
+   * @param properties - Email properties
+   * @returns Created email data
+   */
+  async createEmail(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.create('emails', {
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createEmail');
+    }
+  }
+
+  /**
+   * Get email by ID
+   * 
+   * @param id - Email ID
+   * @returns Email data
+   */
+  async getEmail(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.objects.basicApi.getById('emails', id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getEmail');
+    }
+  }
+
+  /**
+   * Search emails
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching emails
+   */
+  async searchEmails(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.objects.searchApi.doSearch('emails', {
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_email_subject',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['hs_email_subject', 'hs_email_text', 'hs_timestamp']
+      });
+      
+      return this.formatResponse(response.results.map(email => ({
+        id: email.id,
+        properties: email.properties,
+        createdAt: email.createdAt,
+        updatedAt: email.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchEmails');
+    }
+  }
+
+  //=============================================================================
+  // QUOTES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a quote
+   * 
+   * @param properties - Quote properties
+   * @returns Created quote data
+   */
+  async createQuote(properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.create({
+        properties,
+        associations: []
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'createQuote');
+    }
+  }
+
+  /**
+   * Get quote by ID
+   * 
+   * @param id - Quote ID
+   * @returns Quote data
+   */
+  async getQuote(id: string): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.getById(id);
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'getQuote');
+    }
+  }
+
+  /**
+   * Update quote properties
+   * 
+   * @param id - Quote ID
+   * @param properties - Properties to update
+   * @returns Updated quote data
+   */
+  async updateQuote(id: string, properties: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.quotes.basicApi.update(id, {
+        properties
+      });
+      
+      return this.formatResponse({
+        id: response.id,
+        properties: response.properties,
+        createdAt: response.createdAt,
+        updatedAt: response.updatedAt
+      });
+    } catch (error) {
+      return this.handleApiError(error, 'updateQuote');
+    }
+  }
+
+
+  /**
+   * Search quotes
+   * 
+   * @param searchQuery - Search query
+   * @param limit - Maximum number of results
+   * @returns Matching quotes
+   */
+  async searchQuotes(searchQuery: string, limit: number = 10): Promise<any[]> {
+    try {
+      const response = await this.client.crm.quotes.searchApi.doSearch({
+        filterGroups: [{
+          filters: [{
+            propertyName: 'hs_title',
+            operator: 'CONTAINS_TOKEN',
+            value: searchQuery
+          }]
+        }],
+        sorts: [],
+        after: 0,
+        limit,
+        properties: ['hs_title', 'hs_expiration_date', 'hs_domain']
+      });
+      
+      return this.formatResponse(response.results.map(quote => ({
+        id: quote.id,
+        properties: quote.properties,
+        createdAt: quote.createdAt,
+        updatedAt: quote.updatedAt
+      })));
+    } catch (error) {
+      return this.handleApiError(error, 'searchQuotes');
+    }
+  }
+
+  //=============================================================================
+  // ASSOCIATIONS API METHODS
+  //=============================================================================
+
+  /**
+   * Create an association between two objects
+   * 
+   * @param fromObjectType - Source object type
+   * @param fromObjectId - Source object ID
+   * @param toObjectType - Target object type
+   * @param toObjectId - Target object ID
+   * @param associationTypeId - Association type ID
+   */
+  async createAssociation(
+    fromObjectType: string,
+    fromObjectId: string,
+    toObjectType: string,
+    toObjectId: string,
+    associationTypeId: number = 1
+  ): Promise<void> {
+    try {
+      await this.client.apiRequest({
+        method: 'PUT',
+        path: `/crm/v4/objects/${fromObjectType}/${fromObjectId}/associations/${toObjectType}/${toObjectId}`,
+        body: [{
+          associationCategory: 'HUBSPOT_DEFINED',
+          associationTypeId
+        }]
+      });
+    } catch (error) {
+      this.handleApiError(error, 'createAssociation');
+    }
+  }
+
+
+  /**
+   * List associations for an object
+   * 
+   * @param objectType - Object type
+   * @param objectId - Object ID
+   * @param toObjectType - Target object type
+   * @param limit - Maximum number of results
+   * @returns List of associations
+   */
+  async listAssociations(
+    objectType: string,
+    objectId: string,
+    toObjectType: string,
+    limit: number = 100
+  ): Promise<any> {
+    try {
+      const response = await this.client.apiRequest({
+        method: 'GET',
+        path: `/crm/v4/objects/${objectType}/${objectId}/associations/${toObjectType}?limit=${limit}`
+      });
+      
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'listAssociations');
+    }
+  }
+
+  //=============================================================================
+  // PROPERTIES API METHODS
+  //=============================================================================
+
+  /**
+   * Create a custom property
+   * 
+   * @param objectType - Object type
+   * @param propertyData - Property data
+   * @returns Created property data
+   */
+  async createProperty(objectType: string, propertyData: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.create(objectType, propertyData as any);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'createProperty');
+    }
+  }
+
+  /**
+   * Get property by name
+   * 
+   * @param objectType - Object type
+   * @param propertyName - Property name
+   * @returns Property data
+   */
+  async getProperty(objectType: string, propertyName: string): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.getByName(objectType, propertyName);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'getProperty');
+    }
+  }
+
+  /**
+   * Update property
+   * 
+   * @param objectType - Object type
+   * @param propertyName - Property name
+   * @param propertyData - Updated property data
+   * @returns Updated property data
+   */
+  async updateProperty(objectType: string, propertyName: string, propertyData: Record<string, any>): Promise<any> {
+    try {
+      const response = await this.client.crm.properties.coreApi.update(objectType, propertyName, propertyData);
+      return this.formatResponse(response);
+    } catch (error) {
+      return this.handleApiError(error, 'updateProperty');
+    }
+  }
+
+
+  /**
+   * List properties for an object type
+   * 
+   * @param objectType - Object type
+   * @returns List of properties
+   */
+  async listProperties(objectType: string): Promise<any[]> {
+    try {
+      const response = await this.client.crm.properties.coreApi.getAll(objectType);
+      return this.formatResponse(response.results);
+    } catch (error) {
+      return this.handleApiError(error, 'listProperties');
     }
   }
 
@@ -810,18 +1580,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Delete/archive a deal
-   * 
-   * @param id - Deal ID
-   */
-  async deleteDeal(id: string): Promise<void> {
-    try {
-      await this.client.crm.deals.basicApi.archive(id);
-    } catch (error) {
-      this.handleApiError(error, 'deleteDeal');
-    }
-  }
 
   /**
    * Search deals
@@ -910,14 +1668,19 @@ export class HubspotApiClient {
    */
   async getRecentDeals(limit: number = 10): Promise<any[]> {
     try {
-      const response = await this.client.crm.deals.basicApi.getPage(
+      // Use search API instead of getPage to get better control over properties
+      const response = await this.client.crm.deals.searchApi.doSearch({
+        filterGroups: [],
+        sorts: [
+          {
+            propertyName: 'createdate',
+            direction: 'DESCENDING'
+          } as any
+        ],
+        after: 0,
         limit,
-        undefined,
-        undefined,
-        undefined,
-        ['dealname', 'amount', 'closedate', 'dealstage', 'pipeline', 'description'],
-        false
-      );
+        properties: ['dealname', 'amount', 'closedate', 'dealstage']
+      });
       
       return this.formatResponse(response.results.map(deal => ({
         id: deal.id,
@@ -930,57 +1693,6 @@ export class HubspotApiClient {
     }
   }
 
-  /**
-   * Batch create deals
-   * 
-   * @param dealsInput - Array of deal properties
-   * @returns Created deals
-   */
-  async batchCreateDeals(dealsInput: Array<Record<string, any>>): Promise<any[]> {
-    try {
-      const inputs = dealsInput.map(properties => ({
-        properties,
-        associations: []
-      }));
-
-      const response = await this.client.crm.deals.batchApi.create({ inputs });
-      
-      return this.formatResponse(response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties,
-        createdAt: deal.createdAt,
-        updatedAt: deal.updatedAt
-      })));
-    } catch (error) {
-      return this.handleApiError(error, 'batchCreateDeals');
-    }
-  }
-
-  /**
-   * Batch update deals
-   * 
-   * @param updates - Array of deal updates
-   * @returns Updated deals
-   */
-  async batchUpdateDeals(updates: Array<{ id: string; properties: Record<string, any> }>): Promise<any[]> {
-    try {
-      const inputs = updates.map(({ id, properties }) => ({
-        id,
-        properties
-      }));
-
-      const response = await this.client.crm.deals.batchApi.update({ inputs });
-      
-      return this.formatResponse(response.results.map(deal => ({
-        id: deal.id,
-        properties: deal.properties,
-        createdAt: deal.createdAt,
-        updatedAt: deal.updatedAt
-      })));
-    } catch (error) {
-      return this.handleApiError(error, 'batchUpdateDeals');
-    }
-  }
 }
 
 /**

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10,
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "healthcheckInterval": 60
+  },
+  "environments": {
+    "production": {
+      "variables": {
+        "NODE_ENV": "production",
+        "LOG_LEVEL": "info",
+        "METRICS_ENABLED": "true",
+        "HEALTH_CHECK_ENABLED": "true",
+        "HOST": "0.0.0.0",
+        "HUBSPOT_API_BASE_URL": "https://api.hubapi.com",
+        "HUBSPOT_RATE_LIMIT": "10",
+        "CORS_ORIGIN": "https://claude.ai,https://console.anthropic.com",
+        "RATE_LIMIT_WINDOW_MS": "900000",
+        "RATE_LIMIT_MAX": "1000",
+        "SESSION_MAX_AGE": "1800000",
+        "SESSION_CLEANUP_INTERVAL": "300000",
+        "REDIS_SESSION_PREFIX": "mcp:session:",
+        "CLAUDE_CLIENT_NAME": "Claude MCP Client"
+      },
+      "secrets": [
+        "HUBSPOT_ACCESS_TOKEN",
+        "CLAUDE_CLIENT_ID",
+        "CLAUDE_CLIENT_SECRET",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET"
+      ]
+    },
+    "staging": {
+      "variables": {
+        "NODE_ENV": "staging", 
+        "LOG_LEVEL": "debug",
+        "METRICS_ENABLED": "true",
+        "HEALTH_CHECK_ENABLED": "true",
+        "HOST": "0.0.0.0",
+        "HUBSPOT_API_BASE_URL": "https://api.hubapi.com",
+        "HUBSPOT_RATE_LIMIT": "10",
+        "CORS_ORIGIN": "http://localhost:3000,http://localhost:3001,https://claude.ai",
+        "RATE_LIMIT_WINDOW_MS": "900000",
+        "RATE_LIMIT_MAX": "10000",
+        "SESSION_MAX_AGE": "3600000",
+        "SESSION_CLEANUP_INTERVAL": "300000",
+        "REDIS_SESSION_PREFIX": "mcp:session:",
+        "CLAUDE_CLIENT_NAME": "Claude MCP Client (Staging)"
+      },
+      "secrets": [
+        "HUBSPOT_ACCESS_TOKEN",
+        "CLAUDE_CLIENT_ID",
+        "CLAUDE_CLIENT_SECRET",
+        "OAUTH_CLIENT_ID",
+        "OAUTH_CLIENT_SECRET"
+      ]
+    }
+  }
+}

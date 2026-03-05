@@ -1,27 +1,25 @@
 import { ToolDefinition } from '../../core/types.js';
 
-import { tool as listTool } from './list.tool.js';
-import { tool as getTool } from './get.tool.js';
-import { tool as createTool } from './create.tool.js';
-import { tool as updateTool } from './update.tool.js';
-import { tool as deleteTool } from './delete.tool.js';
-import { tool as listGroupsTool } from './listGroups.tool.js';
-import { tool as getGroupTool } from './getGroup.tool.js';
-import { tool as createGroupTool } from './createGroup.tool.js';
-import { tool as updateGroupTool } from './updateGroup.tool.js';
-import { tool as deleteGroupTool } from './deleteGroup.tool.js';
+import { tool as searchTool } from './properties.search.js';
+// import { tool as listTool } from './properties.list.js'; // DISABLED: Returns ALL properties (200-500+), causes context window issues. Use searchProperties instead.
+import { tool as getTool } from './properties.get.js';
+import { tool as createTool } from './properties.create.js';
+import { tool as updateTool } from './properties.update.js';
+import { tool as listGroupsTool } from './properties.listGroups.js';
+import { tool as getGroupTool } from './properties.getGroup.js';
+import { tool as createGroupTool } from './properties.createGroup.js';
+import { tool as updateGroupTool } from './properties.updateGroup.js';
 
 export const propertiesTools: ToolDefinition[] = [
-  listTool,
+  searchTool,        // Use this to find properties with filters - avoids context window issues
+  // listTool,       // DISABLED: Returns ALL properties (200-500+), use searchProperties instead
   getTool,
   createTool,
   updateTool,
-  deleteTool,
   listGroupsTool,
   getGroupTool,
   createGroupTool,
-  updateGroupTool,
-  deleteGroupTool
+  updateGroupTool
 ];
 
 export const propertiesBCP = {
